@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"/>
+<style>body{font-family:system-ui,sans-serif;width:260px;margin:14px}label{display:block;margin:10px 0}button{margin-top:8px;padding:8px 12px;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}small{color:#666}</style>
+</head><body>
+<h3 style="margin:0">ContextLens</h3>
+<p style="margin:6px 0"><small>Less repetition. More control. Local only — nothing is sent anywhere.</small></p>
+<label><input type="checkbox" id="enabled"> Enabled</label>
+<label>Fold after <input type="number" id="threshold" min="1" max="10" style="width:56px"> appearances</label>
+<p id="stats"><small>Loading…</small></p>
+<button id="reset">Reset all counts</button>
+<p><small>Uncertain matches are never folded — they only get a count badge.</small></p>
+<script src="popup.js"></script>
+</body></html>
