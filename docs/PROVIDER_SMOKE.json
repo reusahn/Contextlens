@@ -1,0 +1,50 @@
+{
+  "scope": "Synthetic API contract checks only. No Instagram accuracy claim.",
+  "passed": true,
+  "actualMetaAttempts": 6,
+  "checks": [
+    {
+      "name": "image observation schema",
+      "passed": true,
+      "label": "CIRRA K2 CAMERA"
+    },
+    {
+      "name": "same synthetic product verification",
+      "passed": true,
+      "decision": {
+        "status": "matched",
+        "reason": "New frames show identical flat-vector graphic as candidate: same icon layout, texts, and background-cycling format with no contradiction.",
+        "sharedCues": [
+          "dark navy rounded rectangle camera icon",
+          "two light circles at top of icon",
+          "teal-green rectangle in lower half",
+          "bold cirra text top-left",
+          "bold k2 camera text bottom-left"
+        ],
+        "conflicts": []
+      }
+    },
+    {
+      "name": "different product from same brand stays separate",
+      "passed": true,
+      "decision": {
+        "status": "distinct",
+        "reason": "Same brand template but different specific product; headphones vs camera is a material product contradiction.",
+        "sharedCues": [
+          "cirra brand text layout",
+          "static flat icon with cycling background format"
+        ],
+        "conflicts": [
+          "M8 HEADPHONES text vs K2 CAMERA text",
+          "headphone icon with orange earcups vs camera icon with teal rectangle",
+          "different product identity: M8 headphones vs K2 camera"
+        ]
+      }
+    },
+    {
+      "name": "inline MP4 API contract",
+      "passed": true,
+      "inputMode": "video"
+    }
+  ]
+}

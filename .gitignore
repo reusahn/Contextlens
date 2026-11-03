@@ -1,0 +1,13 @@
+.DS_Store
+__MACOSX/
+node_modules/
+.env
+**/.env
+*.log
+origintrace-web/backend/data/
+origintrace-web/backend/uploads/*
+!origintrace-web/backend/uploads/.gitkeep
+
+**/.contextlens-usage.json*
+benchmarks/results/
+playwright-report/

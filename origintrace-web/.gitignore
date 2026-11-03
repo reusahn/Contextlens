@@ -1,0 +1,26 @@
+#installed dependencies
+node_modules/
+
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+backend/uploads/*
+!backend/uploads/.gitkeep
+frontend/dist/
+
+dist/
+
+.DS_Store
+*.log
+
+/data/samples/*
+!/data/samples/.gitkeep
+
+# Persistent billing ledger (back up separately; never reset on deployment)
+backend/data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

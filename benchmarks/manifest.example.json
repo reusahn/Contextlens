@@ -1,0 +1,9 @@
+{
+  "threshold": 3,
+  "note": "Replace paths with videos you can use. Include different recordings of one specific phenomenon and lookalike negatives. expectedGroup is never sent to the model.",
+  "posts": [
+    {"id":"clip-01","account":"creator_alpha","path":"videos/clip-01.mp4","caption":"Original post caption","expectedGroup":"phenomenon-A"},
+    {"id":"clip-02","account":"creator_beta","path":"videos/clip-02.mp4","caption":"A different recording or format of A","expectedGroup":"phenomenon-A"},
+    {"id":"clip-03","account":"creator_gamma","path":"videos/clip-03.mp4","caption":"A lookalike that is actually different","expectedGroup":"phenomenon-B"}
+  ]
+}

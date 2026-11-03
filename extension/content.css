@@ -1,0 +1,2 @@
+/* The interactive UI lives in an extension-owned Shadow DOM. */
+video.cl-video-blurred {filter:blur(24px) brightness(.44)!important;}

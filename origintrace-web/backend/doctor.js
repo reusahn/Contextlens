@@ -1,0 +1,10 @@
+import {config} from 'dotenv';
+import {fileURLToPath} from 'node:url';
+import {readBudgetStatus} from './services/metaBudget.js';
+import {runtimeCapabilities} from './services/runtimeCapabilities.js';
+config({path:fileURLToPath(new URL('../.env',import.meta.url))});
+const capabilities=runtimeCapabilities();
+console.log(JSON.stringify({...capabilities,budget:readBudgetStatus(),metaKeyConfigured:Boolean(process.env.META_API_KEY?.trim()),searchProvider:process.env.SEARCH_PROVIDER||'meta',tavilyKeyConfigured:Boolean(process.env.TAVILY_API_KEY?.trim())},null,2));
+if(!capabilities.ffmpeg)console.log('Install FFmpeg or set FFMPEG_COMMAND to its executable path.');
+if(!capabilities.platformExtractor)console.log('Install yt-dlp or set YTDLP_COMMAND to its executable path for public Instagram extraction.');
+console.log('This check makes no provider calls and does not validate API credentials.');

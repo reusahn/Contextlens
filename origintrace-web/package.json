@@ -1,0 +1,22 @@
+{
+  "name": "video-context-engine",
+  "private": true,
+  "version": "0.2.0",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently -k \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "dev:frontend": "npm run dev -w frontend",
+    "dev:backend": "npm run dev -w backend",
+    "start": "npm run start -w backend",
+    "check": "npm run check -w backend && npm run check -w frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  }
+}
