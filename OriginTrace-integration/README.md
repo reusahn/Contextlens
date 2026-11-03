@@ -1,6 +1,6 @@
 # OriginTrace integration
 
-The `origintrace-web/` folder is the **separate OriginTrace codebase supplied by your collaborator**, preserved with one small integration change in `frontend/src/main.js`.
+The `origintrace-web/` folder is the **separate OriginTrace codebase supplied by LeahSoda**, preserved with one small integration change in `frontend/src/main.js`.
 
 `ContextLens` opens a new tab to the configured OriginTrace URL and adds three query parameters:
 
