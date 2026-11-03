@@ -1,6 +1,8 @@
 # Operations
 
-This guide describes the backend controls implemented in the current prototype. Start with the [application README](../README.md) for local setup.
+This guide covers operation of OriginTrace's current application: provider configuration, spending controls, evidence handling and deployment requirements. The full project vision is defined in [scope](SCOPE.md), and implemented versus planned components are described in [architecture](ARCHITECTURE.md). Start with the [application README](../README.md) for local setup.
+
+The settings below describe current controls and their assumptions. Pricing is pinned to the verification date listed below; check it before a new deployment.
 
 ## Spending controls
 
@@ -83,3 +85,49 @@ Before public deployment, implement authenticated endpoint quotas and review fil
 API keys remain backend-only. Ignored `.env` files, uploaded media, logs and SQLite state must not be committed. Provider requests contain the images, audio, snippets and queries needed by enabled features; inspect provider data policies before submitting sensitive material. The ledger stores reservation/accounting information and hashed IP identities; operator overrides can add local review metadata. It is not a report archive.
 
 Temporary files are removed in normal cleanup paths, but crashes can leave residue. Use a suitable private upload/temp directory and an operational cleanup policy. Do not delete the ledger with temporary files or depend on container-ephemeral storage for its persistence.
+
+## Running the hackathon demonstration
+
+Use the upload-first workflow as the primary demonstration path. Select permitted, nonpolitical, non-war clips with manually checked source records. Include one contextual discrepancy, one consistent-context case and one inconclusive case. Example selection is an operator policy; the backend does not enforce a political/war-content classifier.
+
+Before the demonstration:
+
+1. Run the documented diagnostics and inspect outstanding reservations. Verify actual provider access with a bounded test; key presence alone does not establish access.
+2. Confirm the active search and speech providers, remaining budget and persistent ledger location. The documented Meta allowance is **$100**, independent of any promotional credit balance.
+3. Check that the selected sources and clips remain accessible and that the reference records distinguish publication dates, recording dates and claimed event dates.
+4. Inspect report rendering, source links, quotes, date labels and inconclusive outcomes. Do not present related coverage as a confirmed visual match.
+5. Record the run configuration, elapsed time, outcome and available usage/accounting data without exposing credentials or personal identifiers.
+
+Live retrieval may return different evidence between runs. If using a prepared report as a fallback, label it as a saved demonstration result and retain its run context; do not present it as a fresh live investigation. Exported reports currently require operator-managed storage; the budget ledger is not a report archive.
+
+Successful demonstration criteria and evaluation metrics are defined in [scope](SCOPE.md). A working pipeline does not establish complete provenance, measured fact-checking accuracy or improved viewer understanding.
+
+## Evidence presentation and review
+
+Operational review should preserve the distinction between what the clip visibly contains, what retrieved sources say and what OriginTrace infers.
+
+| Report element | Interpretation and review rule |
+| --- | --- |
+| Model clue | A search lead; inspect it before treating it as an observed fact. |
+| Related source | Evidence to assess, not proof that the source contains matching footage. |
+| Publication timestamp | A date associated with the source or post; do not substitute it for a recording date. |
+| Earliest located result | Bounded by the sources searched and accessible during that run; not a guaranteed original upload. |
+| Ranking score | The documented ranking heuristic, not a probability of truth or falsity. |
+| Timeline edge | Chronological order in the current implementation, not demonstrated copying. |
+| Reported modification | A source's account unless direct media comparison independently supports it. |
+| Contextual finding | A reviewable assessment that must retain source support and uncertainty. |
+
+Missing sources, inaccessible media or conflicting dates should remain explicit. Do not remove uncertainty labels to make a demonstration appear complete. When interpreting a discrepancy, check whether a post explicitly labels footage as archival or illustrative.
+
+The application currently offers link inspection and report export, not an authenticated correction queue or adjudication audit trail. Operator notes and manually verified reference records are separate from application functionality.
+
+## Operating the broader project
+
+The full project adds visual lineage, persistent evidence relationships, review workflows and potentially an at-viewing overlay. Each expansion needs its own implementation and operational validation:
+
+- **Visual matching:** evaluate false matches, crops, excerpts and aligned timecodes before presenting confirmed footage relationships.
+- **Persistent evidence:** define access, retention, deletion and correction procedures separately from accounting data.
+- **Public access:** implement authenticated quotas and production hosting controls before treating IP-based dispatch limits as user-level protection.
+- **At-viewing presentation:** validate accessibility, uncertainty labels and links to evidence, including when contextual coverage is incomplete.
+
+These are future operating requirements, not controls already provided by the current application.
