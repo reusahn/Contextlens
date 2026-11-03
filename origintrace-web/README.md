@@ -6,8 +6,7 @@ OriginTrace explores the **“real footage, wrong context”** problem: a genuin
 
 ## Project scope
 
-The November 2026 *OriginTrace Product & Research Concept Brief* provides the product direction. Its research question is: **How can we identify reused footage and present a reviewable contextual finding at the point of viewing?**
-
+OriginTrace stems from a social problem we observed on social media: authentic videos can spread with misleading captions, dates, or descriptions, shaping what viewers believe about people, places, and events. When footage loses its context, viewers may mistake an unsupported claim for fact and unknowingly spread that misunderstanding. This led us to ask: **How can we identify reused footage and present a reviewable contextual finding at the point of viewing?**
 The proposed product has three layers:
 
 1. Reconstruct earliest located appearances through source discovery.

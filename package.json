@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "User-controlled repetition filtering with Meta visual observation and independent phenomenon verification",
-  "engines": {"node": ">=22.13.0"},
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
     "bridge": "node bridge/server.js",
     "feed": "node test-feed/server.js",
