@@ -3,6 +3,9 @@
  * Unreadable frames, unknown accounts, and uncertain matches are left visible.
  */
 (() => {
+  const ACCOUNT_BUILD = 'account-depth32-2026-11-04';
+  const ACCOUNT_MAX_DEPTH = 32;
+  console.info('[ContextLens] Loaded', ACCOUNT_BUILD, chrome.runtime.id);
   const DEFAULT = {enabled: true, threshold: 3, aiEnabled: false, alwaysShow: []};
   let settings = DEFAULT;
   let library = {};
@@ -42,7 +45,7 @@
     }
     // Reels can put the creator beside several nested video wrappers. Walk
     // outward, but never search the page or a container spanning other players.
-    for (let el=video.parentElement, depth=0; el && depth<10; el=el.parentElement, depth++) {
+    for (let el=video.parentElement, depth=0; el && depth<ACCOUNT_MAX_DEPTH; el=el.parentElement, depth++) {
       if (el.matches('body, main, [role="main"]') || el.querySelectorAll('video').length!==1) break;
       const list = el.querySelectorAll('a[href]');
       for (const link of list) {
@@ -316,8 +319,26 @@
     }
     if(!st.firstVisibleAt)st.firstVisibleAt=Date.now();
     if(!st.account) {
-      if(isVisible && Date.now()-st.firstSeenAt>1800 && !st.working)
+      if(isVisible && Date.now()-st.firstSeenAt>1800 && !st.working) {
         statusBadge(st,'Account unavailable · not counted','muted');
+        if(!st.accountDiagnosticLogged) {
+          st.accountDiagnosticLogged=true;
+          const ancestors=[];
+          for(let el=video.parentElement,depth=0;el && depth<ACCOUNT_MAX_DEPTH;el=el.parentElement,depth++) {
+            ancestors.push({depth,tag:el.tagName,role:el.getAttribute('role'),
+              videos:el.querySelectorAll('video').length,
+              boundary:el.matches('body, main, [role="main"]'),
+              links:[...el.querySelectorAll('a[href]')].slice(0,25).map(link=>({
+                path:new URL(link.href,location.href).pathname,
+                account:userFromHref(link.href),
+                label:String(link.textContent||'').trim().slice(0,60),
+                inList:!!link.closest('ul, [role="list"]'),inHeader:!!link.closest('header')
+              }))});
+            if(el.matches('body, main, [role="main"]'))break;
+          }
+          console.info('[ContextLens] Account lookup diagnostic',ACCOUNT_BUILD,JSON.stringify(ancestors));
+        }
+      }
       return;
     }
     if (video.paused && !video.srcObject && video.readyState<2) return;

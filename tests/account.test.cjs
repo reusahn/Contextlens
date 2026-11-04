@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const source=fs.readFileSync(require.resolve('../extension/content.js'),'utf8');
 const helpers=source.slice(source.indexOf('  const blockedPaths'),source.indexOf('  function postUrlOf'));
-const {accountOf,userFromHref}=vm.runInNewContext(`${helpers}\n({accountOf,userFromHref})`,{URL,location:{href:'https://www.instagram.com/reels/',hostname:'www.instagram.com'}});
+const {accountOf,userFromHref}=vm.runInNewContext(`const ACCOUNT_MAX_DEPTH=32;\n${helpers}\n({accountOf,userFromHref})`,{URL,location:{href:'https://www.instagram.com/reels/',hostname:'www.instagram.com'}});
 function link(name,comment=false){return {href:`https://www.instagram.com/${name}/`,textContent:name,closest:s=>s.startsWith('ul')&&comment?{}:null};}
 function player(links=[],count=1,parentElement=null){return {parentElement,matches:()=>false,querySelectorAll:s=>s==='video'?Array(count).fill({}):links};}
 function video(parentElement){return {parentElement,closest:()=>null};}
@@ -25,6 +25,15 @@ test('creator can be a sibling of deeply nested Reels video wrappers',()=>{
  const root=player([link('creator.name')]);
  const v=video(player([],1,player([],1,root)));
  assert.equal(accountOf(v,v.parentElement),'creator.name');
+});
+test('finds creator beyond twelve wrappers while retaining player boundaries',()=>{
+ const creator=link('deep_creator');creator.href+='reels/';
+ let root=player([creator]);
+ for(let i=0;i<20;i++)root=player([],1,root);
+ assert.equal(accountOf(video(root),root),'deep_creator');
+ let boundary=player([creator],2);
+ for(let i=0;i<20;i++)boundary=player([],1,boundary);
+ assert.equal(accountOf(video(boundary),boundary),'');
 });
 test('does not attribute a different player or comment author',()=>{
  const root=player([link('other_creator')],2);
