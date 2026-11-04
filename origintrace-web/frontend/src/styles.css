@@ -13,3 +13,5 @@
 @media(max-width:560px){.report .overview-header h2{font-size:25px}.context-description{font-size:14px}.lineage-event{width:175px;flex-basis:175px}.lineage-event p{max-width:150px}.full-report-toggle{width:100%;min-width:0}.overview-timeline,.overview-context{padding:22px 0}}
 
 .comparison-input{margin:20px 0;color:#b8cfb0;font-size:12px}.comparison-input summary{cursor:pointer;margin-bottom:14px}.comparison-input[open]{padding:16px;border:1px solid #3d5243;border-radius:5px}.comparison-input summary:focus-visible{outline:2px solid #a5ed71;outline-offset:4px}
+
+.related-context-timeline .lineage-dot{border-color:#90bfe0;background:#1b2c38}.related-context-timeline .lineage-event:after{background:#405969}.related-context-timeline .overview-section-heading>span{color:#a1c9e5}.lineage-event .lineage-excerpt{font-size:11px;color:#95aaa5;line-height:1.7}

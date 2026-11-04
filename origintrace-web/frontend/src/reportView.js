@@ -4,14 +4,30 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'
 function link(url,title){try{const u=new URL(url);if(!['https:','http:'].includes(u.protocol))throw Error();return `<a href="${esc(u.href)}" target="_blank" rel="noopener noreferrer">${esc(title)}</a>`;}catch{return esc(title);}}
 const date=value=>Number.isFinite(Date.parse(value))?new Intl.DateTimeFormat('en-US',{dateStyle:'medium',timeZone:'UTC'}).format(new Date(value)):'Date unknown';
 function brief(value){const text=String(value||'').replace(/\s+/g,' ').trim();return text.length<=440?text:text.slice(0,437).replace(/\s+\S*$/,'')+'…';}
+function timelineGraph(nodes,{label,emptyMessage,context=false}){
+ const dated=nodes.filter(n=>n.date&&Number.isFinite(Date.parse(n.date))).sort((a,b)=>Date.parse(a.date)-Date.parse(b.date));
+ const undated=nodes.filter(n=>!n.date||!Number.isFinite(Date.parse(n.date)));
+ return `${dated.length?`<div class="lineage-scroll" tabindex="0" role="region" aria-label="${esc(label)}; scroll to explore"><ol class="lineage-track">${dated.map(n=>`<li class="lineage-event${n.kind==='submitted post'?' lineage-submitted':''}"><time datetime="${esc(n.date)}">${date(n.date)}</time><span class="lineage-dot" aria-hidden="true"></span><small>${context?'RELATED COVERAGE':n.kind==='submitted post'?'SUBMITTED POST':'MATCHING UPLOAD'}</small><p>${link(n.url,n.title)}</p>${context&&n.claimExcerpt?`<p class="lineage-excerpt">${esc(brief(n.claimExcerpt).slice(0,180))}</p>`:''}</li>`).join('')}</ol></div>`:`<div class="lineage-empty">${esc(emptyMessage)}</div>`}
+ ${undated.length?`<div class="lineage-undated"><span>Date unknown</span>${undated.map(n=>`<span>${link(n.url,n.title)}</span>`).join('')}</div>`:''}`;
+}
 export function renderFootageTimeline(history){
- const timeline=Array.isArray(history?.timeline)?history.timeline:[];
- const dated=timeline.filter(n=>n.date&&Number.isFinite(Date.parse(n.date))).sort((a,b)=>Date.parse(a.date)-Date.parse(b.date));
- const undated=timeline.filter(n=>!n.date||!Number.isFinite(Date.parse(n.date)));
- return `<section class="overview-timeline"><div class="overview-section-heading"><span>02 / TIMELINE</span><h3>Footage in context</h3></div><p class="overview-note">Located coverage in date order. Connections show chronology, not confirmed copies of this footage.</p>
- ${dated.length?`<div class="lineage-scroll" tabindex="0" role="region" aria-label="Horizontal timeline of dated sources; scroll to explore"><ol class="lineage-track">${dated.map(n=>`<li class="lineage-event${n.kind==='submitted post'?' lineage-submitted':''}"><time datetime="${esc(n.date)}">${date(n.date)}</time><span class="lineage-dot" aria-hidden="true"></span><small>${n.kind==='submitted post'?'SUBMITTED POST':n.kind==='matching upload'?'MATCHING UPLOAD':'RELATED COVERAGE'}</small><p>${link(n.url,n.title)}</p></li>`).join('')}</ol></div>`:'<div class="lineage-empty">No supported dates yet. The available sources do not establish a footage timeline.</div>'}
- ${undated.length?`<div class="lineage-undated"><span>Date unknown</span>${undated.map(n=>`<span>${link(n.url,n.title)}</span>`).join('')}</div>`:''}
- <p class="overview-note">Origin assessment: <strong>${esc(originAssessment(history).displayLabel)}</strong>${originAssessment(history).status==='origin unknown'?' (unverified)':''}. ${esc(originAssessment(history).reason)} Spacing is for readability, not elapsed time.</p></section>`;
+ const timeline=(Array.isArray(history?.timeline)?history.timeline:[]).filter(n=>n.kind==='matching upload'||n.kind==='submitted post');
+ const origin=originAssessment(history);
+ return `<section class="overview-timeline"><div class="overview-section-heading"><span>02 / FOOTAGE TIMELINE</span><h3>Footage timeline</h3></div><p class="overview-note">Submitted footage and confirmed matching uploads. Connections show chronology, not confirmed copies or a first uploader.</p>
+ ${timelineGraph(timeline,{label:'Horizontal footage timeline',emptyMessage:'No supported footage dates yet. The available evidence does not establish a footage timeline.'})}
+ <p class="overview-note">Origin assessment: <strong>${esc(origin.displayLabel)}</strong>${origin.status==='origin unknown'?' (unverified)':''}. ${esc(origin.reason)} Spacing is for readability, not elapsed time.</p></section>`;
+}
+export function renderRelatedContextTimeline(history,sources=[]){
+ const nodes=new Map();
+ for(const n of Array.isArray(history?.timeline)?history.timeline:[])if(n.kind==='related coverage')nodes.set(n.url||n.id,n);
+ for(const [i,s] of (Array.isArray(sources)?sources:[]).entries()){
+  const key=s.url||`source-${i}`;
+  const previous=nodes.get(key);
+  nodes.set(key,{url:s.url,title:s.title||previous?.title,date:s.publishedAt||previous?.date||null,kind:'related coverage',claimExcerpt:s.excerpt||previous?.claimExcerpt||''});
+ }
+ return `<section class="overview-timeline related-context-timeline"><div class="overview-section-heading"><span>03 / RELATED CONTEXT</span><h3>Related-context timeline</h3></div><p class="overview-note">How related reporting appeared over time. Article publication dates describe coverage, not when this footage was recorded or uploaded.</p>
+ ${timelineGraph([...nodes.values()],{label:'Horizontal related-context timeline',emptyMessage:nodes.size?'Related sources were found, but none has a supported publication date. Undated sources are listed below.':'No related coverage has been located yet.',context:true})}
+ <p class="overview-note">Sources may discuss the same subject without showing the same footage. Spacing is for readability, not elapsed time.</p></section>`;
 }
 function renderSources(r){
  const sources=Array.isArray(r.sources)?r.sources:[];
@@ -32,7 +48,8 @@ export function renderReportView(r){
  <div class="report-overview"><header class="overview-header"><h2>Your footage, at a glance.</h2><span class="pill">${esc(r.status||'Preliminary evidence review')}</span></header>
  <section class="category-report" aria-label="Content category report">${renderCategoryReport(r.categoryReport)}</section>
  ${renderFootageTimeline(r.lifeHistory)}
- <section class="overview-context"><div class="overview-section-heading"><span>03 / CONTEXT</span><h3>The short version</h3></div><p class="context-description">${esc(brief(r.summary)||'There is not enough clip-specific context to describe this footage yet.')}</p><div class="overview-evidence"><span>${sources.length} related ${sources.length===1?'source':'sources'}</span><span>${visual?'Sampled frames analyzed':'Based on available text; video not visually analyzed'}</span></div><p class="overview-note">Related reporting can add context, but does not establish that sources show the same footage or that their claims are true.</p></section>
+ ${renderRelatedContextTimeline(r.lifeHistory,r.sources)}
+ <section class="overview-context"><div class="overview-section-heading"><span>04 / CONTEXT</span><h3>The short version</h3></div><p class="context-description">${esc(brief(r.summary)||'There is not enough clip-specific context to describe this footage yet.')}</p><div class="overview-evidence"><span>${sources.length} related ${sources.length===1?'source':'sources'}</span><span>${visual?'Sampled frames analyzed':'Based on available text; video not visually analyzed'}</span></div><p class="overview-note">Related reporting can add context, but does not establish that sources show the same footage or that their claims are true.</p></section>
  </div>
  <div class="full-report-action"><button id="fullReportToggle" class="full-report-toggle" type="button" aria-expanded="false" aria-controls="fullReportDetails">See the full report <span aria-hidden="true">↓</span></button><p>Sources, extracted text, analysis details, and limitations.</p></div>
  <div id="fullReportDetails" class="full-report-details" role="region" aria-labelledby="fullReportHeading" hidden><h2 id="fullReportHeading">Full search report</h2><p class="report-summary">${esc(r.summary)}</p>${renderFullReport(r)}</div>

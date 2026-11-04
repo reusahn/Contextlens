@@ -4,15 +4,18 @@ OriginTrace investigates a clip using sampled-frame clues, available captions an
 transcripts, web sources, and checked publication metadata. Its reports show
 related coverage and uncertainty; they do not establish an original upload.
 
-The report presents three outputs at a glance:
+The report presents four outputs at a glance:
 
 - **Clip category graph:** a hexagonal radar chart shows the relative relevance
   of six format families, with detailed tags, percentages and a separate subject
   label such as Food, Politics or Music.
-- **Footage history timeline:** a horizontal timeline places located coverage,
-  confirmed matching uploads and the submitted post in chronological order when
-  supported dates are available. Undated items appear separately. Connections
-  represent chronology, not proof that one uploader copied another.
+- **Footage timeline:** a horizontal timeline places confirmed matching uploads
+  and the submitted post in chronological order when supported upload dates are
+  available. Connections do not prove copying or identify the first uploader.
+- **Related-context timeline:** directly beneath the footage timeline, a separate
+  horizontal graph shows related reporting by publication date, with source links
+  and short excerpts. Undated sources appear separately. This graph can still be
+  populated when footage dates or matching uploads are unavailable.
 - **Brief context description:** a short explanation of the available clip
   context. **See the full report** reveals sources, matching evidence, extracted
   text, search diagnostics and limitations.
@@ -85,10 +88,11 @@ hosted search replaces source discovery, not every page fetch.
 
 ## Category graph and footage timeline
 
-Reports open with an overview: content category chart, a horizontal timeline of
-dated coverage, and a brief context description. Undated sources are listed
-separately. The timeline represents publication order, not confirmed copying or
-a verified footage lineage; its spacing does not measure elapsed time.
+Reports open with an overview: content category chart, footage timeline,
+related-context timeline, and a brief context description. Undated sources are
+listed separately. Timeline spacing does not measure elapsed time. Related
+reporting follows publication order and is kept separate from footage-upload
+evidence; it does not establish a verified lineage.
 “See the full report” expands all sources, extracted text, search diagnostics,
 historical comparisons, and limitations. The same button collapses the details.
 JSON export always includes the complete report, regardless of the visible layer.

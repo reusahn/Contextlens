@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {renderReportView,renderFootageTimeline,bindReportDisclosure} from '../../frontend/src/reportView.js';
+import {renderReportView,renderFootageTimeline,renderRelatedContextTimeline,bindReportDisclosure} from '../../frontend/src/reportView.js';
 import {buildLifeHistory} from './footageHistory.js';
 import {buildCategoryReport} from './contentCategories.js';
 const report=()=>({status:'Preliminary evidence review',summary:'A recipe shows how to prepare noodles.',pipeline:{vision:'skipped: video unavailable'},
@@ -11,15 +11,26 @@ test('overview exposes chart, chronology and short context before hidden full re
  const html=renderReportView(report());
  const split=html.indexOf('id="fullReportDetails"'),overview=html.slice(0,split),details=html.slice(split);
  assert.ok(overview.includes('category-radar'));assert.ok(overview.includes('lineage-track'));assert.ok(overview.includes('The short version'));
- assert.ok(overview.includes('Based on available text'));assert.ok(!overview.includes('Retrieved source details'));
+ assert.ok(overview.includes('Based on available text'));assert.ok(!overview.includes('Heuristic score: domain'));
+ assert.ok(overview.indexOf('<h3>Footage timeline</h3>')<overview.indexOf('<h3>Related-context timeline</h3>'));
+ assert.ok(overview.indexOf('<h3>Related-context timeline</h3>')<overview.indexOf('The short version'));
  assert.match(details,/aria-labelledby="fullReportHeading" hidden/);
  for(const text of ['Retrieved source details','Analysis progress','Clip text','Unknowns &amp; limitations'])assert.ok(details.includes(text),text);
  assert.match(overview,/aria-expanded="false" aria-controls="fullReportDetails"/);
 });
 test('lineage orders valid dates, separates undated posts and does not claim copying',()=>{
- const html=renderFootageTimeline({timeline:[{title:'Later',date:'2022-01-01'},{title:'Unknown',date:null},{title:'Earlier',date:'2020-01-01'}]});
+ const html=renderFootageTimeline({timeline:[{title:'Later',date:'2022-01-01',kind:'matching upload'},{title:'Unknown',date:null,kind:'submitted post'},{title:'Earlier',date:'2020-01-01',kind:'matching upload'}]});
  assert.ok(html.indexOf('Earlier')<html.indexOf('Later'));assert.ok(html.includes('Date unknown'));assert.match(html,/not confirmed copies/);
- assert.match(renderFootageTimeline(null),/No supported dates/);
+ assert.match(renderFootageTimeline(null),/No supported footage dates/);
+});
+test('related coverage appears in its own ordered timeline and remains visible without footage dates',()=>{
+ const history={timeline:[{url:'https://example.com/old',title:'Old coverage',date:'2011-01-01',kind:'related coverage'},{title:'Submitted',date:null,kind:'submitted post'}]};
+ const sources=[{url:'https://example.com/new',title:'New coverage',publishedAt:'2024-01-01'},{url:'https://example.com/undated',title:'Undated coverage'}];
+ const footage=renderFootageTimeline(history),context=renderRelatedContextTimeline(history,sources);
+ assert.ok(!footage.includes('Old coverage'));assert.ok(!context.includes('Submitted'));
+ assert.ok(context.indexOf('Old coverage')<context.indexOf('New coverage'));assert.ok(context.includes('Undated coverage'));
+ assert.ok(context.includes('lineage-track'));assert.match(context,/not when this footage was recorded or uploaded/);
+ assert.match(renderRelatedContextTimeline(null),/No related coverage/);
 });
 test('disclosure supports opening and closing and updates accessible state',()=>{
  const attrs={'aria-expanded':'false'};let click;
