@@ -47,6 +47,17 @@ test('blocks unpriced model without network',async()=>{
  process.env.META_MODEL='another-vision-model';
  await assert.rejects(visionDescribe(['image'],'clip.mp4'),/approved pricing/);
 });
+test('category profile travels through the existing vision call without another inference',async()=>{
+ const categoryProfile={subject:'Food',formats:[{tag:'Recipe',weight:80,reason:'Visible ingredients and cooking steps'},{tag:'Tutorial',weight:20,reason:'Step labels'}]};
+ let calls=0;
+ globalThis.fetch=async(_url,options)=>{
+  calls++;const body=JSON.parse(options.body);
+  assert.ok(body.response_format.json_schema.schema.properties.categoryProfile);
+  return completion(JSON.stringify({...description,categoryProfile}));
+ };
+ const result=await visionDescribe(['aW1hZ2U='],'clip.mp4');
+ assert.deepEqual(result.categoryProfile,categoryProfile);assert.equal(calls,1);
+});
 
 test('skips provider when credentials or frames are absent',async()=>{
  assert.equal(await visionDescribe([],''),null);
@@ -77,7 +88,7 @@ test('rejects errors, truncated output, refusals, and invalid frontend field typ
 test('missing credentials preserve the full frontend response contract without requests',async()=>{
  delete process.env.META_API_KEY;
  const report=await analyze({filePath:'/unused',filename:'clip.mp4'});
- assert.deepEqual(Object.keys(report).sort(),['mode','input','summary','visibleClues','searchTerms','earliestAppearance','sources','lifeHistory','confidenceNote','clipText','queries','pipeline','searchDiagnostics','extractedClues','conclusion','uncertainty','status','generatedAt'].sort());
+ assert.deepEqual(Object.keys(report).sort(),['categoryReport','mode','input','summary','visibleClues','searchTerms','earliestAppearance','sources','lifeHistory','confidenceNote','clipText','queries','pipeline','searchDiagnostics','extractedClues','conclusion','uncertainty','status','generatedAt'].sort());
  assert.equal(report.mode,'limited');
  assert.equal(report.input.filename,'clip.mp4');
  for(const field of ['visibleClues','searchTerms','sources','uncertainty']) assert.ok(Array.isArray(report[field]));

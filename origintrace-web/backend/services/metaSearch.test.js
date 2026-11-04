@@ -15,6 +15,24 @@ test('Meta citations are normalized without treating model text as an article/da
  const results=normalizeMetaSearch(data).results;assert.equal(results.length,1);assert.equal(results[0].published_date,null);assert.equal(results[0].content,'Dover harbor rescue');
  assert.equal(normalizeMetaSearch({output:[{type:'message',content:[]}]}).results.length,0);
 });
+test('documented raw hits and citations preserve snippets without inventing publication dates',()=>{
+ const data=response(['harbor']);
+ data.output.unshift({type:'reasoning'});
+ data.output.push({type:'message',content:[{type:'output_text',text:'A generated date: 1999-01-01',annotations:[
+  {type:'url_citation',url:'https://example.com/report',title:'Harbor rescue'},
+  {type:'url_citation',url:'https://example.com/second',title:'Second report'}
+ ]}]});
+ const {results}=normalizeMetaSearch(data);
+ assert.equal(results.length,2);assert.equal(results[0].content,'Dover harbor rescue');
+ assert.equal(results[1].content,'');assert.ok(results.every(x=>x.published_date===null));
+ const unsearched={output:data.output.filter(x=>x.type!=='web_search_call')};
+ assert.equal(normalizeMetaSearch(unsearched).results.length,0);
+ assert.match(normalizeMetaSearch(unsearched).warning,/did not complete/);
+});
+test('empty completed search explains missing evidence',()=>{
+ const data=response(['harbor']);data.output[0].results=[];
+ assert.match(normalizeMetaSearch(data).warning,/no usable source/);
+});
 test('opted-in mocked search reserves estimated query cost and reconciles reported tokens/queries',async()=>{
  const env={...process.env};process.env.META_SEARCH_BILLING_MODE='best_effort';process.env.META_API_KEY='mock';process.env.META_API_DISABLED='false';
  const budget=new MetaBudget(join(mkdtempSync(join(tmpdir(),'meta-search-')),'budget.sqlite'));

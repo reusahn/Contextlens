@@ -21,4 +21,5 @@ app.use(express.json({limit:'1mb'}));
 app.get('/api/health', (_req,res)=>res.json({ok:true,capabilities,budget:readBudgetStatus(),vision:Boolean(process.env.META_API_KEY?.trim()),search:(process.env.SEARCH_PROVIDER||'meta')==='tavily'?Boolean(process.env.TAVILY_API_KEY?.trim()):process.env.META_SEARCH_BILLING_MODE==='best_effort'&&Boolean(process.env.META_API_KEY?.trim()),searchProvider:process.env.SEARCH_PROVIDER||'meta'}));
 app.use('/api',analysisRouter(uploadDir));
 app.use((err,_req,res,_next)=>res.status(err.status || 400).json({error:'Request failed'}));
-app.listen(port,()=>console.log(`OriginTrace backend: http://localhost:${port}`));
+// Session-assisted extraction must remain a local service.
+app.listen(port,process.env.INSTAGRAM_COOKIES_BROWSER?'127.0.0.1':undefined,()=>console.log(`OriginTrace backend: http://localhost:${port}`));

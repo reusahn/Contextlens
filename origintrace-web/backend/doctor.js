@@ -8,3 +8,4 @@ console.log(JSON.stringify({...capabilities,budget:readBudgetStatus(),metaKeyCon
 if(!capabilities.ffmpeg)console.log('Install FFmpeg or set FFMPEG_COMMAND to its executable path.');
 if(!capabilities.platformExtractor)console.log('Install yt-dlp or set YTDLP_COMMAND to its executable path for public Instagram extraction.');
 console.log('This check makes no provider calls and does not validate API credentials.');
+if((process.env.SEARCH_PROVIDER||'meta')==='meta'&&process.env.META_SEARCH_BILLING_MODE!=='best_effort')console.log('Meta web search is blocked: META_SEARCH_BILLING_MODE=best_effort requires accepting estimated query accounting. See README.md.');

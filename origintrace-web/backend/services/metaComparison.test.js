@@ -30,6 +30,7 @@ test('Meta web search fails closed before any paid dispatch',async()=>{
  const env={...process.env},fetch=globalThis.fetch;
  try{
   delete process.env.SEARCH_PROVIDER;process.env.META_API_KEY='mock';globalThis.fetch=()=>assert.fail('No paid call allowed');
-  const r=await searchEvidence(['Dover harbor rescue']);assert.equal(r.diagnostics.provider,'meta');assert.equal(r.diagnostics.status,'blocked');assert.match(r.warning,/not billed queries/);
+  delete process.env.META_SEARCH_BILLING_MODE;
+  const r=await searchEvidence(['Dover harbor rescue']);assert.equal(r.diagnostics.provider,'meta');assert.equal(r.diagnostics.status,'blocked');assert.match(r.warning,/META_SEARCH_BILLING_MODE=best_effort/);
  }finally{process.env=env;globalThis.fetch=fetch;}
 });

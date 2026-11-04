@@ -6,7 +6,13 @@ export function normalizeMetaSearch(data){
  if(!calls.some(c=>c.status==='completed'))return {results:[],warning:'Meta did not complete a web search; generated statements are not treated as retrieved evidence.'};
  const sources=new Map();
  const add=(value)=>{try{
-  const url=webUrl(value.url);if(!sources.has(url))sources.set(url,{url,title:String(value.title||'Retrieved source'),content:String(value.snippet||'').slice(0,2000),raw_content:'',published_date:null});
+  const url=webUrl(value.url),existing=sources.get(url);
+  const title=String(value.title||'Retrieved source'),content=String(value.snippet||'').slice(0,2000);
+  if(!existing)sources.set(url,{url,title,content,raw_content:'',published_date:null});
+  else {
+   if(!existing.content&&content)existing.content=content;
+   if(existing.title==='Retrieved source'&&value.title)existing.title=title;
+  }
  }catch{}};
  for(const call of calls.filter(c=>c.status==='completed')){
   for(const result of call.results||[])add(result);
@@ -16,7 +22,7 @@ export function normalizeMetaSearch(data){
   if(message.type!=='message')continue;
   for(const block of message.content||[])for(const annotation of block.annotations||[])if(annotation.type==='url_citation')add(annotation);
  }
- return {results:[...sources.values()].slice(0,24),warning:''};
+ return {results:[...sources.values()].slice(0,24),warning:sources.size?'':'Meta completed a search but returned no usable source URLs.'};
 }
 function countedQueries(data){
  let queries=0;

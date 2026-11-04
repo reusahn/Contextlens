@@ -16,7 +16,7 @@ async function mapLimited(items,limit,fn){
 }
 export async function searchEvidence(terms,context={}, {fetchImpl=globalThis.fetch,pageFetcher=fetchPublic}={}){
  const provider=process.env.SEARCH_PROVIDER?.trim()||'meta';
- if(!['meta','tavily'].includes(provider)||provider==='meta'&&process.env.META_SEARCH_BILLING_MODE!=='best_effort')return {sources:[],earliest:null,queries:[],diagnostics:{status:'blocked',provider,queriesAttempted:0,queriesFailed:0,candidates:0,matched:0},warning:provider==='meta'?'Meta hosted web search is blocked by the spending guard: the documented API caps tool calls but not billed queries per call. Configure SEARCH_PROVIDER=tavily and TAVILY_API_KEY for retrieval; Meta can compare retrieved article text using the existing $100 ledger.':'Unknown SEARCH_PROVIDER. Use meta or tavily.'};
+ if(!['meta','tavily'].includes(provider)||provider==='meta'&&process.env.META_SEARCH_BILLING_MODE!=='best_effort')return {sources:[],earliest:null,queries:[],diagnostics:{status:'blocked',provider,queriesAttempted:0,queriesFailed:0,candidates:0,matched:0},warning:provider==='meta'?'Meta hosted web search requires META_SEARCH_BILLING_MODE=best_effort in origintrace-web/.env and a backend restart. Enable only after accepting estimated search-query accounting: max_tool_calls is not a hard cap on billed queries. Strict mode makes no search requests.':'Unknown SEARCH_PROVIDER. Use meta or tavily.'};
  const key=(provider==='meta'?process.env.META_API_KEY:process.env.TAVILY_API_KEY)?.trim();
  const diagnostics={provider,status:key?'pending':'disabled',queriesAttempted:0,queriesFailed:0,candidates:0,matched:0};
  if(!key)return {sources:[],earliest:null,queries:[],diagnostics,warning:`Evidence search is disabled: configure ${provider==='meta'?'META_API_KEY':'TAVILY_API_KEY'} in the backend .env and restart the server.`};
@@ -96,7 +96,11 @@ export async function searchEvidence(terms,context={}, {fetchImpl=globalThis.fet
    const comparison=await compareWithMeta(verified,{...context,terms},context.user||'anonymous');
    for(const item of comparison.comparisons)verified[Number(item.id)].metaComparison={assessment:item.assessment,reason:item.reason};
    comparisonWarning=comparison.warning;claimComparisons=comparison.claimComparisons||[];modificationReports=comparison.modificationReports||[];
-  }catch{comparisonWarning='Meta text comparison unavailable or blocked by budget/rate controls; deterministic evidence ranking remains available.';}
+  }catch(error){
+   const detail=error.name==='MetaControlError'?error.message:
+    /^Meta comparison (?:incomplete|invalid|omitted candidates)$/.test(error.message)?error.message:'Unexpected comparison failure';
+   comparisonWarning=`Meta text comparison unavailable: ${detail}. Deterministic evidence ranking remains available.`;
+  }
  }
  // AI assessments are displayed separately; never promote a generated assertion to a verified fact or date.
  const ranked=rankMatched(verified);

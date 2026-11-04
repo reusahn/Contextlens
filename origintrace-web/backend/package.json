@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.js",
-    "check": "node --check services/metaSearch.js && node --check budgetReview.js && node --check services/footageHistory.js && node --check doctor.js && node --check services/runtimeCapabilities.js && node --check services/platformMedia.js && node --check services/metaSpeech.js && node --check services/searchClues.js && node --check services/metaComparison.js && node --check services/urlContext.js && node --check services/clipText.js && node --check services/metaBudget.js && node --check server.js && node --check routes/analysis.js && node --check services/videoAnalyzer.js && node --check services/sourceDiscovery.js && node --check services/evidenceRanking.js",
+    "check": "node --check services/contentCategories.js && node --check services/metaSearch.js && node --check budgetReview.js && node --check services/footageHistory.js && node --check doctor.js && node --check services/runtimeCapabilities.js && node --check services/platformMedia.js && node --check services/metaSpeech.js && node --check services/searchClues.js && node --check services/metaComparison.js && node --check services/urlContext.js && node --check services/clipText.js && node --check services/metaBudget.js && node --check server.js && node --check routes/analysis.js && node --check services/videoAnalyzer.js && node --check services/sourceDiscovery.js && node --check services/evidenceRanking.js",
     "test": "node --test services/*.test.js",
     "doctor": "node doctor.js",
     "budget:review": "node budgetReview.js"

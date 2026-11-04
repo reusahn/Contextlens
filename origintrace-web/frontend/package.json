@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "node --check src/main.js && node --check src/footageHistory.js"
+    "check": "node --check src/main.js && node --check src/footageHistory.js && node --check src/contentCategories.js && node --check src/reportView.js"
   },
   "devDependencies": {
     "vite": "^6.2.0"
