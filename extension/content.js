@@ -16,7 +16,8 @@
       const url = new URL(href, location.href);
       if (url.hostname !== location.hostname) return '';
       const chunks = url.pathname.split('/').filter(Boolean);
-      if (chunks.length !== 1 || blockedPaths.has(chunks[0].toLowerCase())) return '';
+      const profilePath = chunks.length === 1 || (chunks.length === 2 && chunks[1].toLowerCase() === 'reels');
+      if (!profilePath || blockedPaths.has(chunks[0].toLowerCase())) return '';
       return /^[a-zA-Z0-9._]{1,30}$/.test(chunks[0]) ? chunks[0].toLowerCase() : '';
     } catch { return ''; }
   }
@@ -39,13 +40,20 @@
         if (name) return name;
       }
     }
-    // Some Reels layouts omit article; detect a profile link in the player's immediate subtree.
-    for (const el of [video.parentElement?.parentElement, wrapper]) {
-      const list = el?.querySelectorAll?.('a[href]') || [];
-      for (const link of [...list].slice(0, 12)) {
+    // Reels can put the creator beside several nested video wrappers. Walk
+    // outward, but never search the page or a container spanning other players.
+    for (let el=video.parentElement, depth=0; el && depth<10; el=el.parentElement, depth++) {
+      if (el.matches('body, main, [role="main"]') || el.querySelectorAll('video').length!==1) break;
+      const list = el.querySelectorAll('a[href]');
+      for (const link of list) {
+        // Comment authors and mentions are not evidence of the posting account.
+        if (link.closest('ul, [role="list"]') &&
+            !link.closest('header')) continue;
         const name = userFromHref(link.href);
-        if (name) return name;
+        const label=String(link.textContent||'').trim().replace(/^@/,'').toLowerCase();
+        if (name && (label===name || link.closest('header'))) return name;
       }
+      if (el===article) break;
     }
     return '';
   }
