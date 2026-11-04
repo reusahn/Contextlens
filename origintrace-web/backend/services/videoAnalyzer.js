@@ -11,6 +11,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {searchEvidence} from './sourceDiscovery.js';
 import {CATEGORY_SCHEMA,CATEGORY_INSTRUCTIONS,buildCategoryReport} from './contentCategories.js';
+import {verifyRetrievedFootage} from './footageMatching.js';
 async function run(cmd,args){return new Promise((resolve,reject)=>{const p=spawn(cmd,args,{stdio:['ignore','ignore','pipe'],timeout:60000});let stderr='';p.stderr.on('data',d=>stderr=(stderr+d.toString()).slice(-1000));p.on('error',reject);p.on('close',code=>code===0?resolve():reject(new Error(`${cmd} failed: ${stderr.slice(-300)}`)));});}
 export async function extractFrames(videoPath){
  const dir=await mkdtemp(join(tmpdir(),'origintrace-'));
@@ -48,7 +49,7 @@ export async function visionDescribe(frames,metadata,user='anonymous'){
  }
  return {summary:result.summary,visibleClues:result.visibleClues,searchTerms:result.searchTerms,uncertainty:result.uncertainty,...(result.categoryProfile?{categoryProfile:result.categoryProfile}:{})};
 }
-export async function analyze({filePath=null,url='',filename='',user='anonymous',caption='',transcript=''},dependencies={}){
+export async function analyze({filePath=null,url='',filename='',user='anonymous',caption='',transcript='',comparisonUrl=''},dependencies={}){
  const warnings=[];let vision=null,context=null,downloadDir=null;
  const pipeline={context:url?'pending':'not requested',video:filePath?'uploaded':'not retrieved',vision:'not analyzed',speech:transcript?'user supplied':'not extracted',caption:caption?'user supplied':'not extracted',search:'pending'};
  if(url)url=canonicalUrl(url);
@@ -107,23 +108,35 @@ export async function analyze({filePath=null,url='',filename='',user='anonymous'
    if(!speech){const result=await transcribe(filePath,user);speech=result.text;pipeline.speech=speech?(result.source||'speech transcript extracted'):'failed or disabled';if(result.warning)warnings.push(result.warning);}
   }else if(url)warnings.push('Video bytes were not analyzed; related reporting is based on URL/page text and supplied context.');
   const clipPublication=verifiedDate((context?.dates||[]).map(d=>({...d,source:d.source.startsWith('platform:')?`page:${d.source}`:d.source})));
+  // An article's date can order reporting, but cannot date the embedded video upload.
+  const uploadDates=(context?.mediaCandidates||[]).filter(m=>m.mediaUrl===context?.video&&m.timestampSource==='videoobject:uploadDate'&&!m.uploadDateConflict)
+   .map(m=>({value:m.uploadedAt,source:'page:videoobject:uploadDate'}));
+  const platformDates=(context?.dates||[]).filter(d=>d.source.startsWith('platform:')).map(d=>({...d,source:`page:${d.source}`}));
+  const submittedUpload=verifiedDate([...uploadDates,...platformDates]);
   const terms=[...new Set([...(vision?.searchTerms||[]),...(vision?.visibleClues||[])])].slice(0,24);
   const evidence=await (dependencies.searchEvidence||searchEvidence)(terms,{url,caption:pageCaption,transcript:speech,user,clipPublishedAt:clipPublication.publishedAt,reconstructHistory:true});
   pipeline.search=evidence.diagnostics?.status||'unknown';
   if(evidence.indexedCaption&&!pageCaption){pageCaption=evidence.indexedCaption;pipeline.context='search-index excerpt (unverified)';pipeline.caption='search-index excerpt (unverified)';warnings.push('Caption context was recovered from a search-index excerpt, not verified against the live clip.');}
   if(evidence.warning)warnings.push(evidence.warning);
   evidence.sources=evidence.sources.map(s=>({...s,...comparePublication(s.publishedAt,clipPublication.publishedAt)}));
+  let footageVerification;
+  try{footageVerification=await (dependencies.verifyRetrievedFootage||verifyRetrievedFootage)({referencePath:filePath,inputUrl:url,candidates:evidence.mediaCandidates||[],comparisonUrl},{fetcher});}
+  catch{footageVerification={status:'unavailable',comparisons:[],matchingUploads:[],reason:'Footage comparison could not complete. No footage-match claim was made.'};}
+  pipeline.footageMatch=footageVerification.status;
+  const reviewed=dependencies.originEvidence||{};
+  const originEvidence={...reviewed,matchingUploads:[...(reviewed.matchingUploads||[]),...(footageVerification.matchingUploads||[])]};
   return {
    mode:vision?'analyzed':evidence.sources.length?'researched':'limited',
    input:{type:url?'url':'upload',filename:filename||null,url:url||null,host:url?new URL(url).hostname:null},
    summary:vision?.summary||(pageCaption?`${pipeline.context==='search-index excerpt (unverified)'?'Unverified indexed context':'Page/user-supplied context'}: ${pageCaption}`:'No video content has been analyzed yet. Related articles, if present, require checking against the clip.'),
    visibleClues:vision?.visibleClues||[],searchTerms:terms,
+   footageVerification,
    categoryReport:buildCategoryReport({vision,caption:pageCaption,transcript:speech,title:context?.title||'',indexed:pipeline.caption==='search-index excerpt (unverified)'}),
    clipText:{title:context?.title||'',publication:clipPublication,captionSource:pipeline.caption,caption:pageCaption,transcript:speech,visibleText:vision?.visibleClues||[],qualification:'Extracted and user-supplied text may contain errors; frame clues may include descriptions as well as visible text.'},
    queries:evidence.queries||[],pipeline,searchDiagnostics:evidence.diagnostics||null,extractedClues:evidence.extractedClues||[],
    conclusion:evidence.sources.length?`Retrieved ${evidence.sources.length} textually related reports. Highest weighted result: ${evidence.sources[0].title}. ${evidence.earliest?`Earliest supported publication: ${evidence.earliest.publishedAt}.`:'Earliest publication remains unestablished.'} These findings do not establish the original upload or factual truth.`:emptyEvidenceMessage(evidence),
    earliestAppearance:evidence.earliest?{date:evidence.earliest.publishedAt,url:evidence.earliest.url,title:evidence.earliest.title,qualification:'Earliest uncontested page-supported publication among matching results; not verified first upload'}:null,
-   sources:evidence.sources,lifeHistory:buildLifeHistory({sources:evidence.sources,inputUrl:url,clipPublication:clipPublication.publishedAt,identity,claimComparisons:evidence.claimComparisons||[],modificationReports:evidence.modificationReports||[]}),
+   sources:evidence.sources,lifeHistory:buildLifeHistory({sources:evidence.sources,inputUrl:url,clipPublication:submittedUpload.publishedAt,identity,claimComparisons:evidence.claimComparisons||[],modificationReports:evidence.modificationReports||[],originEvidence}),
    confidenceNote:'Weighted heuristic: website significance 50%, chronology 30%, textual relevance 20%. Not a probability of truth or proof of the same clip.',
    uncertainty:[...(vision?.uncertainty||[]),...warnings],status:vision||evidence.sources.length?'Preliminary evidence review':'Insufficient evidence',generatedAt:new Date().toISOString()
   };

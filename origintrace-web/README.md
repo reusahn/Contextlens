@@ -4,6 +4,19 @@ OriginTrace investigates a clip using sampled-frame clues, available captions an
 transcripts, web sources, and checked publication metadata. Its reports show
 related coverage and uncertainty; they do not establish an original upload.
 
+The report presents three outputs at a glance:
+
+- **Clip category graph:** a hexagonal radar chart shows the relative relevance
+  of six format families, with detailed tags, percentages and a separate subject
+  label such as Food, Politics or Music.
+- **Footage history timeline:** a horizontal timeline places located coverage,
+  confirmed matching uploads and the submitted post in chronological order when
+  supported dates are available. Undated items appear separately. Connections
+  represent chronology, not proof that one uploader copied another.
+- **Brief context description:** a short explanation of the available clip
+  context. **See the full report** reveals sources, matching evidence, extracted
+  text, search diagnostics and limitations.
+
 ## Start locally
 
 Requires Node.js 22.13 or newer and FFmpeg for uploaded video processing.
@@ -70,7 +83,7 @@ or a verified date. Historical dates in search prompts are hints, not enforced
 date filters. Article retrieval still uses the application's public-page fetcher;
 hosted search replaces source discovery, not every page fetch.
 
-## Content category reports
+## Category graph and footage timeline
 
 Reports open with an overview: content category chart, a horizontal timeline of
 dated coverage, and a brief context description. Undated sources are listed
@@ -97,6 +110,94 @@ Related article text is excluded. Missing evidence produces an empty chart.
 All percentages are normalized relevance shares, not calibrated probabilities,
 video-time measurements, or authenticity scores. This feature does not resolve
 Instagram media-access restrictions.
+
+## Origin assessment
+
+The origin section now uses four evidence-based statuses:
+
+- **origin unknown:** no reviewed footage match with a supported upload date.
+- **earliest matching upload located:** the earliest dated confirmed match in the
+  investigation; this does not establish a globally first upload.
+- **creator attribution supported:** matching footage has reviewed attribution
+  with at least two distinct supporting evidence URLs.
+- **earlier upload found:** a confirmed matching upload predates the supported
+  publication time of the submitted post.
+
+All applicable findings are retained. The headline prioritizes an earlier upload,
+then supported attribution, then the earliest matching upload, otherwise unknown.
+Related article dates never qualify as upload evidence.
+
+`assessOrigin()` in `backend/services/footageHistory.js` consumes server-produced
+matching evidence. A match needs confirmed exact-file equality or a reviewed
+sequence match, plus a verified platform/reviewed timestamp or an explicitly
+labelled page-supported `VideoObject.uploadDate`. Page metadata is the publisher's
+claim, not independent proof of when the video was uploaded. Attribution still
+requires reviewed corroboration and cannot be asserted through the public request
+or model output. Legacy `unestablished` labels display as **origin unknown**.
+
+## Technical implementation: footage matching
+
+OriginTrace uses **SHA-256 (Secure Hash Algorithm, 256-bit)** to compare complete
+video files. The server hashes the submitted footage and each downloaded
+candidate, checks that the submitted file contains decodable video, and compares
+the digests. Equal digests confirm an exact file match. Re-encoding, cropping or
+editing can change the hash even when videos share footage, so non-identical
+files also undergo sampled-frame sequence comparison using FFmpeg, perceptual
+fingerprints and color patterns. SHA-256 is not used to infer visual similarity,
+the original creator, or a first-upload date.
+
+The matcher returns four user-facing result categories:
+
+| Category | Meaning | Effect on origin assessment |
+| --- | --- | --- |
+| **Confirmed** | Exact video-file match using SHA-256. | Can support a matching-upload finding when an explicit supported upload date is also available. |
+| **Possible match** | A similar ordered frame sequence was found in non-identical files. | Requires review; does not automatically establish origin. |
+| **No match** | No qualifying sequence was found within the sampled windows. | No matching-upload finding; this does not rule out a match elsewhere in the videos. |
+| **Unavailable / not checked** | Media could not be retrieved or decoded, no candidate/reference was available, or matching was disabled. | No footage-match claim is made. |
+
+These comparison categories are separate from the four **origin assessment**
+statuses above: origin unknown, earliest matching upload located, creator
+attribution supported, and earlier upload found. Matching footage alone cannot
+establish who created it or who uploaded it first.
+
+The implementation is in [footageMatching.js](backend/services/footageMatching.js),
+with origin findings evaluated in [footageHistory.js](backend/services/footageHistory.js).
+The category graph is rendered by [contentCategories.js](frontend/src/contentCategories.js),
+and the horizontal timeline and report layers by [reportView.js](frontend/src/reportView.js).
+
+`backend/services/footageMatching.js` now runs after source discovery when the
+submitted video bytes are available. It finds accessible candidate video files
+in retrieved pages (`VideoObject.contentUrl`, Open Graph video and HTML video
+sources). Alternatively, expand **Compare with a known video** in the input form
+and paste a direct video URL or a page containing accessible footage. This is a
+comparison tool, not a reverse-video search index or an Instagram access bypass.
+Candidate retrieval does not read Chrome cookies or run platform extractors.
+Use content you are permitted to retrieve and process.
+
+For non-identical files, FFmpeg decodes up to the first 30 seconds at 2 fps.
+The sequence comparator requires six consecutive similar frames, at least 60%
+coverage of the shorter sampled sequence, three visually distinct frames, color
+agreement and perceptual-hash agreement. Aligned timestamps are shown for review.
+These thresholds are heuristics, not calibrated probabilities. Crops, overlays,
+speed changes, static clips, late excerpts and uncaptured scenes may cause missed
+matches; a negative result only describes the sampled windows.
+
+The full report shows every attempted comparison, its method, available upload
+date, exact hash or aligned frame times, and limitations. Exported JSON includes
+`footageVerification`. Article publication dates and search dates cannot substitute
+for upload evidence. Conflicting video upload dates remain unconfirmed.
+
+Checks use the existing public-address-pinned HTTP fetcher and local FFmpeg, not
+paid Meta inference. Default limits: two candidates (configurable 1–3 using
+`FOOTAGE_MATCH_MAX_CANDIDATES`), 30 MiB per remote response, 60 sampled frames per
+video, and a shared 20-second network/decoding budget. Temporary candidate files
+are deleted after processing. Set `FOOTAGE_MATCH_ENABLED=false` to disable this
+additional stage. No extra Meta API calls are made.
+
+Real FFmpeg fixture tests cover identical files, transcoded copies, excerpts,
+unrelated and static footage, upload-date provenance and cleanup. They do not
+establish accuracy on real Instagram videos. Creator attribution review and broad
+cross-platform visual discovery remain unimplemented.
 
 ## Checks
 

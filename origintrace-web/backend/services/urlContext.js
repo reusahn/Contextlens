@@ -15,11 +15,15 @@ export function webUrl(value,base){
  u.hash='';return u.href;
 }
 // Resolve and pin a public address per redirect, preventing DNS rebinding and SSRF.
-export async function fetchPublic(value,{maxBytes=2*1024*1024,redirects=4}={}){
+export async function fetchPublic(value,{maxBytes=2*1024*1024,redirects=4,timeoutMs=15000,deadline=Date.now()+timeoutMs}={}){
  const url=new URL(webUrl(value));
  const hostname=url.hostname.replace(/^\[|\]$/g,'');
- const addresses=isIP(hostname)?[{address:hostname,family:isIP(hostname)}]:await lookup(hostname,{all:true});
+ const addresses=isIP(hostname)?[{address:hostname,family:isIP(hostname)}]:await new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>reject(Error('DNS lookup timed out')),Math.max(1,deadline-Date.now()));
+  lookup(hostname,{all:true}).then(value=>{clearTimeout(timer);resolve(value);},error=>{clearTimeout(timer);reject(error);});
+ });
  if(!addresses.length||addresses.some(x=>!publicAddress(x.address)))throw Error('URL does not resolve to public internet');
+ if(Date.now()>=deadline)throw Error('Remote request timed out');
  const address=addresses.find(x=>x.family===4)||addresses[0];
  const result=await new Promise((resolve,reject)=>{
   const req=(url.protocol==='https:'?https:http).get(url,{
@@ -32,10 +36,10 @@ export async function fetchPublic(value,{maxBytes=2*1024*1024,redirects=4}={}){
    res.on('data',chunk=>{size+=chunk.length;if(size>maxBytes)res.destroy(Error('Remote content exceeds size limit'));else chunks.push(chunk);});
    res.on('error',reject);res.on('end',()=>resolve({url:url.href,type:String(res.headers['content-type']||''),bytes:Buffer.concat(chunks)}));
   });
-  const timer=setTimeout(()=>req.destroy(Error('Remote request timed out')),15000);
+  const timer=setTimeout(()=>req.destroy(Error('Remote request timed out')),Math.max(1,deadline-Date.now()));
   req.on('close',()=>clearTimeout(timer));req.on('error',reject);
  });
- if(result.redirect){if(!redirects)throw Error('Too many redirects');return fetchPublic(webUrl(result.redirect,url),{maxBytes,redirects:redirects-1});}
+ if(result.redirect){if(!redirects)throw Error('Too many redirects');return fetchPublic(webUrl(result.redirect,url),{maxBytes,redirects:redirects-1,timeoutMs,deadline});}
  return result;
 }
 export const decode=s=>String(s||'').replace(/&(?:amp|quot|apos|lt|gt|#39|#\d+|#x[0-9a-f]+);/gi,x=>{
@@ -84,15 +88,23 @@ export function parsePage(html,url){
   const attrs=attributes(tag);
   const key=attrs.property||attrs.name||attrs.itemprop;if(key&&attrs.content)meta[key.toLowerCase()]=attrs.content;
  }
- const dates=[];let structuredCaption='',structuredVideo='';
+ const dates=[],structuredMedia=[];let structuredCaption='',structuredVideo='';
  for(const key of ['article:published_time','datepublished','date','pubdate'])if(meta[key])dates.push({value:meta[key],source:`page:${key}`});
  for(const block of html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)){
-  try{const walk=(v,depth=0)=>{if(depth>10||!v||typeof v!=='object')return;if(v['@type']==='VideoObject'){structuredCaption=typeof v.description==='string'?v.description:structuredCaption;structuredVideo=typeof v.contentUrl==='string'?v.contentUrl:structuredVideo;}if(v.datePublished)dates.push({value:v.datePublished,source:'page:datePublished'});for(const x of Object.values(v))if(typeof x==='object')walk(x,depth+1);};walk(JSON.parse(block[1]));}catch{}
+  try{const walk=(v,depth=0)=>{if(depth>10||!v||typeof v!=='object')return;if(v['@type']==='VideoObject'||Array.isArray(v['@type'])&&v['@type'].includes('VideoObject')){structuredCaption=typeof v.description==='string'?v.description:structuredCaption;structuredVideo=typeof v.contentUrl==='string'?v.contentUrl:structuredVideo;if(typeof v.contentUrl==='string')structuredMedia.push({mediaUrl:safeMedia(v.contentUrl,url),uploadedAt:typeof v.uploadDate==='string'?v.uploadDate:null});}if(v.datePublished)dates.push({value:v.datePublished,source:'page:datePublished'});for(const x of Object.values(v))if(typeof x==='object')walk(x,depth+1);};walk(JSON.parse(block[1]));}catch{}
  }
  const embedded=embeddedInstagram(html,url);if(embedded?.dates)dates.push(...embedded.dates);
  const video=embedded?.video||structuredVideo||meta['og:video:secure_url']||meta['og:video:url']||meta['og:video']||html.match(/<(?:video|source)\b[^>]*src=["']([^"']+)["']/i)?.[1];
+ const mediaByUrl=new Map();
+ for(const m of structuredMedia.filter(m=>m.mediaUrl)){
+  const prior=mediaByUrl.get(m.mediaUrl);
+  if(prior){if(prior.uploadedAt!==m.uploadedAt){prior.uploadedAt=null;prior.uploadDateConflict=true;}}
+  else mediaByUrl.set(m.mediaUrl,{...m,sourceUrl:url,timestampSource:'videoobject:uploadDate'});
+ }
+ const mediaCandidates=[...mediaByUrl.values()].slice(0,4);
+ if(video&&!mediaCandidates.some(m=>m.mediaUrl===safeMedia(video,url)))mediaCandidates.push({sourceUrl:url,mediaUrl:safeMedia(video,url),uploadedAt:null});
  const tracks=[...html.matchAll(/<track\b[^>]*src=["']([^"']+)["'][^>]*>/gi)].map(m=>m[1]);
- return {url,title:plain(meta['og:title']||html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]||''),caption:plain(embedded?.caption||structuredCaption||meta['og:description']||meta.description||''),text:plain(html).slice(0,24000),links:[...html.matchAll(/<(?:a|iframe)\b[^>]*>/gi)].map(m=>attributes(m[0])).map(a=>a.href||a.src).filter(Boolean).slice(0,100).flatMap(link=>{try{return [webUrl(link,url)];}catch{return [];}}),dates,video:safeMedia(video,url),tracks:tracks.slice(0,2).flatMap(x=>{const link=safeMedia(x,url);return link?[link]:[];})};
+ return {url,mediaCandidates,title:plain(meta['og:title']||html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]||''),caption:plain(embedded?.caption||structuredCaption||meta['og:description']||meta.description||''),text:plain(html).slice(0,24000),links:[...html.matchAll(/<(?:a|iframe)\b[^>]*>/gi)].map(m=>attributes(m[0])).map(a=>a.href||a.src).filter(Boolean).slice(0,100).flatMap(link=>{try{return [webUrl(link,url)];}catch{return [];}}),dates,video:safeMedia(video,url),tracks:tracks.slice(0,2).flatMap(x=>{const link=safeMedia(x,url);return link?[link]:[];})};
 }
 export async function retrieveContext(url,{fetcher=fetchPublic}={}){
  const response=await fetcher(canonicalUrl(url));

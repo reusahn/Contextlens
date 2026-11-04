@@ -85,7 +85,7 @@ export async function searchEvidence(terms,context={}, {fetchImpl=globalThis.fet
   try{
    const r=await pageFetcher(s.url);if(!/html/i.test(r.type))throw Error();
    const page=parsePage(r.bytes.toString(),r.url);if(!usableContext(page))throw Error();
-   s.articleText=page.text;s.title=page.title||s.title;s.links=page.links;
+   s.articleText=page.text;s.title=page.title||s.title;s.links=page.links;s.mediaCandidates=page.mediaCandidates||[];
    dates.push(...page.dates);retrievalStatus='page retrieved';
   }catch{}
   return {...s,...verifiedDate(dates),...matchArticle(s,clues,context.url),retrievalStatus,excerpt:(s.articleText||s.excerpt).slice(0,2000),retrievedAt:new Date().toISOString()};
@@ -106,5 +106,9 @@ export async function searchEvidence(terms,context={}, {fetchImpl=globalThis.fet
  const ranked=rankMatched(verified);
  diagnostics.matched=ranked.sources.length;diagnostics.checked=verified.length;diagnostics.rejected=verified.length-ranked.sources.length;diagnostics.unchecked=Math.max(0,collected.size-verified.length);
  diagnostics.status=diagnostics.queriesFailed===diagnostics.queriesAttempted?'failed':diagnostics.queriesFailed?'partial':'completed';
- return {...ranked,billingQualification:provider==='meta'?'Meta search uses best-effort estimated query accounting; the strict $100 guarantee does not apply to hosted-search charges.':null,claimComparisons,modificationReports,queryLog,queries,diagnostics,indexedCaption,extractedClues,warning:[comparisonWarning,...issues,diagnostics.queriesFailed?`${diagnostics.queriesFailed} search queries failed.`:'',!clues.length?'No clip-specific text was available; only articles referencing the submitted URL can be matched. Paste a caption/transcript or upload the clip.':'',ranked.earliest?'Earliest page-supported publication date among textually matched results; not a verified first upload.':'No matching source has an uncontested page-supported publication date.','Text matching does not verify that reports show the same clip. Syndicated copies are not independent confirmation.'].filter(Boolean).join(' ')};
+ const mediaCandidates=verified.flatMap(s=>[
+  ...(s.mediaCandidates||[]).map(m=>({...m,title:s.title})),
+  ...(/\.(?:mp4|webm|mov)(?:\?|$)/i.test(s.url)?[{sourceUrl:s.url,mediaUrl:s.url,title:s.title,uploadedAt:null}]:[])
+ ]).slice(0,12);
+ return {...ranked,mediaCandidates,billingQualification:provider==='meta'?'Meta search uses best-effort estimated query accounting; the strict $100 guarantee does not apply to hosted-search charges.':null,claimComparisons,modificationReports,queryLog,queries,diagnostics,indexedCaption,extractedClues,warning:[comparisonWarning,...issues,diagnostics.queriesFailed?`${diagnostics.queriesFailed} search queries failed.`:'',!clues.length?'No clip-specific text was available; only articles referencing the submitted URL can be matched. Paste a caption/transcript or upload the clip.':'',ranked.earliest?'Earliest page-supported publication date among textually matched results; not a verified first upload.':'No matching source has an uncontested page-supported publication date.','Text matching does not verify that reports show the same clip. Syndicated copies are not independent confirmation.'].filter(Boolean).join(' ')};
 }

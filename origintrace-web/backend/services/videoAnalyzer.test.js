@@ -88,7 +88,7 @@ test('rejects errors, truncated output, refusals, and invalid frontend field typ
 test('missing credentials preserve the full frontend response contract without requests',async()=>{
  delete process.env.META_API_KEY;
  const report=await analyze({filePath:'/unused',filename:'clip.mp4'});
- assert.deepEqual(Object.keys(report).sort(),['categoryReport','mode','input','summary','visibleClues','searchTerms','earliestAppearance','sources','lifeHistory','confidenceNote','clipText','queries','pipeline','searchDiagnostics','extractedClues','conclusion','uncertainty','status','generatedAt'].sort());
+ assert.deepEqual(Object.keys(report).sort(),['footageVerification','categoryReport','mode','input','summary','visibleClues','searchTerms','earliestAppearance','sources','lifeHistory','confidenceNote','clipText','queries','pipeline','searchDiagnostics','extractedClues','conclusion','uncertainty','status','generatedAt'].sort());
  assert.equal(report.mode,'limited');
  assert.equal(report.input.filename,'clip.mp4');
  for(const field of ['visibleClues','searchTerms','sources','uncertainty']) assert.ok(Array.isArray(report[field]));

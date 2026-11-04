@@ -23,7 +23,7 @@ test('real FFmpeg extracts first frame of short clips and five spaced frames of 
 test('timeline orders dated evidence and never invents origin or edits',()=>{
  const history=buildLifeHistory({sources:[{url:'https://example.com/new',title:'New claim',publishedAt:'2025-01-01',excerpt:'A current claim'},{url:'https://example.com/old',title:'Old coverage',publishedAt:'2020-01-01',excerpt:'An earlier claim'},{url:'https://example.com/no-date',title:'Undated'}]});
  assert.equal(history.timeline[0].title,'Old coverage');assert.equal(history.earliestLocated.title,'Old coverage');
- assert.equal(history.originalOrigin.status,'unestablished');assert.equal(history.modificationHistory.status,'unestablished');assert.equal(history.cryptographicProvenance.status,'not checked');
+ assert.equal(history.originalOrigin.status,'origin unknown');assert.equal(history.modificationHistory.status,'unestablished');assert.equal(history.cryptographicProvenance.status,'not checked');
  assert.match(history.edges[0].relationship,/derivation not established/);
 });
 test('exact-file hash identifies bytes, not footage origin',async()=>{
