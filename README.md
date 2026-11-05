@@ -8,7 +8,7 @@ Built for the Meta Global AI Developer Hackathon with **Meta Muse Spark 1.3**. C
 
 **Prototype 1.0.1** · Chrome Manifest V3 · Node.js 22.13+
 
-[Why we built it](#why-we-built-it) · [Demo flow](#demo-flow) · [How it works](#how-it-works) · [Run locally](#run-locally) · [Validation](#validation)
+[Why we built it](#why-we-built-it) · [Demo flow](#demo-flow) · [Core engineering contribution](#core-engineering-contribution) · [How it works](#how-it-works) · [Run locally](#run-locally) · [Validation](#validation)
 
 ## Why we built it
 
@@ -60,6 +60,49 @@ To demonstrate the interaction, select **Unique posts**, set **N = 2**, and watc
 
 **Subject, content type, format, and target have different jobs.** For example, a post can have the subject *Food*, content type *Cake*, format *Advertisement*, and a specific named cake as its target. The first three labels do not authorize a merge.
 
+## Core engineering contribution
+
+**Track the same specific phenomenon across different recordings, while keeping similar-looking but unrelated targets separate.**
+
+ContextLens implements this goal through **candidate-free observation, multilingual candidate retrieval, and a separate temporal comparison with application-enforced match checks**. The resulting target groups drive persistent exposure counts and viewer-controlled playback. This is our application architecture built around Muse Spark; we have not trained a new model or established a new state-of-the-art recognition method.
+
+### Three stages, richer evidence than three keywords
+
+The pipeline has **three stages**, not a fixed three-keyword representation. Spark returns structured observations, and each field has a different job:
+
+| Representation | Example or purpose | Role in a match |
+| --- | --- | --- |
+| Subject, content type, and format | Food / Cake / Advertisement | Display and description; broad labels alone do not establish identity. |
+| Representative keyword and label | A short name for the observed target | Readable description; the same wording alone is insufficient. |
+| Specific target and identity scope | A particular choreography, product, event, or campaign | Defines what the application is trying to track. |
+| Ordered action description | Visible movements and transitions over time | Supports comparison across different performers and filming conditions. |
+| Entities, aliases, visible text, and distinctive cues | Observed names, OCR, symbols, product details | Supports candidate retrieval and specific comparison. |
+| Visual evidence and uncertainty | What sampled frames support or leave unknown | Controls whether the observation is specific enough to use. |
+
+These are model-produced interpretations of sampled evidence. They are not a transcript of Spark's internal reasoning, and a plausible description can still be wrong.
+
+### Why this architecture
+
+| Design choice | Engineering purpose | Implementation |
+| --- | --- | --- |
+| Observe before showing stored candidates | Describe the current clip before exposing the model to existing group names; intended to reduce anchoring. | [Observation schema and prompt](bridge/viral-engine.js) |
+| Retrieve with multilingual descriptors | Find candidate groups despite different wording or English/Korean aliases, without maintaining a hardcoded list of demo trends. | [Descriptor retrieval](extension/shared.js) |
+| Compare chronological current and reference frames | Give the verifier intermediate motion evidence when available, including when performers, rooms, or clothing change. | [Verification request](bridge/viral-engine.js) |
+| Require explicit support before merging | Keep broad similarity, a retrieved name, or a soundtrack from independently determining identity. | [Match acceptance checks](bridge/viral-engine.js) |
+| Separate interpretation from counting | Make replay deduplication, the counting unit, threshold, and reveal control deterministic once a target assignment is accepted. | [Shared counting helpers](extension/shared.js) |
+
+The verification prompt asks for at least two concrete shared cues, including an identity-defining cue, and no material contradiction. The application checks the returned candidate ID, allowed match basis, confidence threshold, at least two deduplicated cue strings, and an empty conflict list. **Those checks validate the response structure and acceptance conditions; they do not independently prove that the model's cues are true or semantically distinct.**
+
+### What the distinction looks like
+
+These examples describe intended decisions, not recorded model outputs:
+
+- **Same choreography, different performers:** compare ordered movement transitions. A different room or hoodie is expected variation. A shared song or dance name alone is insufficient.
+- **Similar protest imagery, different campaigns:** a shared sign color is insufficient. Compare evidenced slogans, identity-defining symbols, and campaign details; conflicting identities should stay separate.
+- **Same food category, different products:** Cake is a display category. A particular product needs supporting identifying details; a strawberry cake and an unrelated chocolate cake keep separate histories.
+
+This design addresses both missed repetition and incorrect grouping. A new **specific** target can start its own group; an **uncertain or insufficient** interpretation stays visible without contributing a semantic count. Its accuracy and the benefit of each design choice still require a labeled comparison study.
+
 ## How it works
 
 ContextLens combines approximate visual matching with an **observe → retrieve → verify** pipeline.
@@ -73,22 +116,30 @@ A merge requires a valid candidate ID, at least two distinct shared cues, no rep
 
 Before semantic analysis, local ordered perceptual hashes and coarse color layout can recognize similar previously observed footage. This is an approximate shortcut; it is not Meta vPDQ or proof of identity.
 
+The semantic recognition path is separate from the similar-footage shortcut:
+
 ```mermaid
 flowchart TD
-    A["Visible Instagram video"] --> B["Extension: sample frames and fingerprint"]
-    B --> C["Local Node bridge"]
-    C --> D["Meta Muse Spark 1.3"]
-    D --> C
-    C --> E["Extension: target groups and counts"]
-    E --> F["Pause, blur, or reveal"]
-    F -->|URL and caption after a click| G["OriginTrace: separate investigation"]
+    A["Current frames and metadata"] --> B["Spark: observe without candidate groups"]
+    B --> C{"Specific visual target?"}
+    C -->|No| U["Leave visible without a semantic count"]
+    C -->|Yes| D["Local retrieval: shortlist groups"]
+    D --> E{"Candidates available?"}
+    E -->|No| N["Create a new specific target"]
+    E -->|Yes| F["Spark: compare current and reference frames"]
+    F --> G{"Match checks pass?"}
+    G -->|Yes| M["Use the matched target"]
+    G -->|Distinct| N
+    G -->|Uncertain| U
+    M --> H["Deduplicate and update target count"]
+    N --> H
 ```
 
 ### Why Meta matters
 
 The central recognition task is semantic: different recordings may depict the same precise phenomenon, while superficially similar recordings may depict different targets. Spark supplies visual and language interpretation for that comparison, including structured descriptions and uncertainty.
 
-Meta is used in the recognition decision itself. Deterministic code handles retrieval, evidence checks, deduplication, counters, playback, and request limits. Separating observation from comparison reduces reliance on one prompt that both describes a clip and chooses its group; it does not eliminate model errors.
+Meta is used in the recognition decision itself: it produces the structured visual observations and the separate candidate comparison. Deterministic code handles retrieval, response acceptance checks, deduplication, counters, playback, and request limits. Separating observation from comparison reduces reliance on one prompt that both describes a clip and chooses its group; it does not eliminate model errors.
 
 ## Deeper investigation with OriginTrace
 
