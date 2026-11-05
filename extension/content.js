@@ -6,7 +6,7 @@
   const ACCOUNT_BUILD = 'account-depth32-2026-11-04';
   const ACCOUNT_MAX_DEPTH = 32;
   console.info('[ContextLens] Loaded', ACCOUNT_BUILD, chrome.runtime.id);
-  const DEFAULT = {enabled: true, threshold: 3, aiEnabled: false, alwaysShow: []};
+  const DEFAULT = {...CL_DEFAULTS};
   let settings = DEFAULT;
   let library = {};
   const observed = new WeakSet();
@@ -63,8 +63,25 @@
   function postUrlOf(video, wrapper) {
     const explicit = video.closest('[data-cl-post]')?.dataset.clUrl;
     if (explicit) return explicit;
-    const direct = video.closest('article')?.querySelector('a[href*="/reel/"], a[href*="/p/"]') || wrapper?.querySelector?.('a[href*="/reel/"], a[href*="/p/"]');
-    try { if (direct?.href) return new URL(direct.href, location.href).href; } catch {}
+    // Instagram often places the permalink above the immediate video wrapper.
+    // Search only within a single-video post boundary; never select another reel.
+    const nodes=[];if(wrapper&&wrapper.querySelectorAll('video').length===1)nodes.push(wrapper);
+    for(let node=video.parentElement,depth=0;node&&depth<ACCOUNT_MAX_DEPTH;node=node.parentElement,depth++) {
+      if(node.matches?.('body, main, [role="main"]'))break;
+      if(node.querySelectorAll('video').length>1)break;
+      if(!nodes.includes(node))nodes.push(node);
+      if(node.tagName==='ARTICLE')break;
+    }
+    for(const node of nodes) {
+      const links=node.querySelectorAll?.('a[href*="/reel/"],a[href*="/reels/"],a[href*="/p/"]')||[];
+      const candidates=new Map();
+      for(const link of links) {
+        if(link.closest('ul, [role="list"]')&&!link.querySelector('time'))continue;
+        try {const url=new URL(link.href,location.href),key=clPostKey(url.href);if(key)candidates.set(key,url.href);}catch{}
+      }
+      if(candidates.size===1)return [...candidates.values()][0];
+      if(candidates.size>1)break;
+    }
     return location.href;
   }
   function captionOf(video, wrapper) {
@@ -148,6 +165,7 @@
     const key=String(concept.viralKey||'');
     return {
       subject: String(hint.topic || concept.topic || 'Other').slice(0,40),
+      category: clCategoryLabel(concept),
       format: key==='slick-back-glide' ? 'Challenge' : String(concept.format || 'Other').slice(0,32),
       // The precise key remains private/internal to the matching algorithm.
       keyword: key==='slick-back-glide' ? 'Slick Back' : String(concept.keyword || concept.label || 'Unidentified clip').slice(0,70)
@@ -162,7 +180,7 @@
     return alias[1];
   }
   function sceneShouldBlur(st, scene) {
-    return !!(scene && settings.enabled && (scene.accounts||[]).length>=Number(settings.threshold||3) &&
+    return !!(scene && settings.enabled && clSceneCount(scene,settings)>=Number(settings.threshold||3) &&
       !(settings.alwaysShow||[]).includes(st.sceneId) && !st.show);
   }
   // Keep the button callback independent of the overlay DOM. Once clicked,
@@ -186,7 +204,7 @@
     const st=states.get(video); if (!st || !st.sceneId) return;
     const scene=getScene(st);
     if (!scene) {clearWidgets(video);st.sceneId='';st.samples=[];return;}
-    const count = (scene.accounts || []).length;
+    const count = clSceneCount(scene,settings),unit=clCountUnit(settings);
     const threshold=Number(settings.threshold || 3);
     const meta=sceneMetadata(scene);
     const active = sceneShouldBlur(st,scene);
@@ -196,9 +214,9 @@
     // A solitary unrelated post should not appear to reset a previously
     // recognized trend from 2/3 to 1/3. Show progress on-video from 2/3;
     // all individual group counts remain visible in the popup.
-    if (count>=2) statusBadge(st,`${meta.format} · ${Math.min(count,threshold)}/${threshold} accounts`);
-    else statusBadge(st,`${meta.format} · tracking`,'muted');
-    st.badge.title=`Subject: ${meta.subject} | Format: ${meta.format} | Group-local account count: ${count}`;
+    if (count>=2) statusBadge(st,`${meta.category} · ${count}/${threshold} ${unit}`);
+    else statusBadge(st,`${meta.category} · ${count}/${threshold} ${unit}`,'muted');
+    st.badge.title=`Subject: ${meta.subject} | Format: ${meta.format} | Target: ${meta.keyword} | ${count} unique ${unit}`;
     if(!active) {video.classList.remove('cl-video-blurred');st.fold?.remove();st.fold=null;st.drawSignature='';return;}
     video.classList.add('cl-video-blurred');
     // At N, halt playback/autoplay as well as applying the visual blur.
@@ -211,17 +229,18 @@
       CLOverlay.attach(video).appendChild(st.fold);
     }
     const hint=scene.hint||{topic:'Other',context:'Context not yet verified.',evidence:'Unverified'};
-    const signature=JSON.stringify([count,threshold,meta,scene.hint,scene.lastDecision]);
+    const signature=JSON.stringify([count,threshold,unit,meta,scene.hint,scene.lastDecision]);
     if(st.drawSignature===signature)return;
     st.drawSignature=signature;
     st.fold.replaceChildren();
     const pill=document.createElement('div');pill.className='cl-kicker';pill.textContent='REPEATED VIRAL CONTENT';
-    const title=document.createElement('div');title.className='cl-title';title.textContent=meta.format;
+    const title=document.createElement('div');title.className='cl-title';title.textContent=meta.category;
     const badges=document.createElement('div');badges.className='cl-tags';
     const subjectTag=document.createElement('span');subjectTag.className='cl-category cl-subject';subjectTag.textContent=meta.subject;
     badges.append(subjectTag);
     const countRow=document.createElement('div');countRow.className='cl-account-row';
-    countRow.textContent=`Seen on ${Math.min(count,threshold)} / ${threshold} unique accounts`;
+    countRow.textContent=`Seen across ${count} / ${threshold} unique ${unit}`;
+    const target=document.createElement('p');target.className='cl-context-text';target.textContent=`Tracking: ${meta.keyword}`;
     const contextText = document.createElement('p');
     contextText.className = 'cl-context-text';
     contextText.textContent = String(hint.context || 'Original context not verified.');
@@ -242,7 +261,7 @@
     const summary=document.createElement('summary');summary.textContent='Why grouped?';
     const explanation=document.createElement('div');explanation.textContent=scene.lastDecision?.reason||'Two ordered visual samples match previously observed footage. Perceptual matching can make mistakes.';
     why.append(summary,explanation);
-    st.fold.append(pill, title, badges, countRow, contextText, evidence, why, actions);
+    st.fold.append(pill, title, badges, countRow, target, contextText, evidence, why, actions);
     CLOverlay.update();
   }
   function ingest(video, st) {

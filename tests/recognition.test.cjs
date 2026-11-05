@@ -43,6 +43,15 @@ test('first unseen target needs one model call; an existing library requires ind
  let calls=0;const options={imageDataUrls:[frame,frame],modelApiKey:'test',fetchImpl:async()=>{calls++;return response(observation);}};
  await identifyViral({...options,candidates:[]});assert.equal(calls,1);
 });
+test('verification receives intermediate motion frames, not only endpoints',async()=>{
+ const frames=Array.from({length:8},(_,i)=>'data:image/jpeg;base64,'+String.fromCharCode(65+i).repeat(400));let request;
+ const result=await matchViral({observation,candidates:[{id:'known',...observation}],imageDataUrls:frames,referenceFrames:()=>frames,modelApiKey:'test',fetchImpl:async(_,opts)=>{
+  request=JSON.parse(opts.body);return response({status:'matched',matchId:'known',matchConfidence:.95,matchBasis:'same-specific-subject',sharedCues:['named shop packaging','fruit rice cake'],conflicts:[],reason:'Two specific cues align.'});
+ }});
+ const images=request.messages[1].content.filter(v=>v.type==='image_url').map(v=>v.image_url.url);
+ assert.deepEqual(images.slice(0,8),frames);assert.deepEqual(images.slice(8),[frames[0],frames[2],frames[5],frames[7]]);
+ assert.equal(result.analysis.verificationFrameCount,8);
+});
 test('invalid completions retry at most once and every attempt is reserved',async()=>{
  let spent=0,requests=0;
  await assert.rejects(describeViral({imageDataUrls:[frame,frame],modelApiKey:'test',beforeRequest:()=>spent++,fetchImpl:async()=>{requests++;return {ok:true,text:async()=>JSON.stringify({choices:[{message:{content:'not JSON'}}]})};}}),/Invalid model JSON/);

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ContextLens \u2014 See the context",
-  "version": "1.0.0",
-  "description": "Blur repeated specific viral subjects, named places/products, actions and meme formats across different Instagram accounts, with opt-in Meta Muse Spark visual analysis.",
+  "version": "1.0.1",
+  "description": "Blur repeated specific viral subjects, named places/products, actions and meme formats with selectable unique-post or account counts and opt-in Meta Muse Spark visual analysis.",
   "permissions": [
     "storage"
   ],
@@ -23,6 +23,7 @@
         "http://127.0.0.1:8765/*"
       ],
       "js": [
+        "shared.js",
         "overlay.js",
         "content.js"
       ],

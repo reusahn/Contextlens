@@ -40,7 +40,7 @@ test('Meta request uses server-side bearer key and image is optional',async()=>{
   assert.equal(req.options.headers.Authorization,'Bearer test-server-key');
 });
 test('background counts only distinct accounts and folds at N',async()=>{
-  const data={};let listener;
+  const data={cl_settings_v2:{countUnit:'accounts'}};let listener;
   const chrome={storage:{local:{get:async keys=>Object.fromEntries(keys.map(k=>[k,data[k]])),set:async items=>Object.assign(data,items)}},runtime:{onMessage:{addListener:fn=>{listener=fn;}}},tabs:{create:async()=>({})}};
   const context=vm.createContext({chrome,console,BigInt,crypto:require('node:crypto').webcrypto,setTimeout,clearTimeout,URL,fetch:async()=>({ok:false,status:401}),AbortController,Date,Math});
   context.importScripts=()=>vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/shared.js'),'utf8'),context);
@@ -79,7 +79,7 @@ test('Muse identification uses 2 ordered image samples and server key',async()=>
   await assert.rejects(identifyViral({caption:'Slick Back',imageDataUrls:[],candidates:[],modelApiKey:'test-only'}),/two readable/);
 });
 test('distinct videos of one specific motif can reach N=3, generic topics cannot',async()=>{
-  const db={cl_settings_v2:{enabled:true,threshold:3,aiEnabled:true,shareFrame:true,bridgeToken:'test-pairing'}};
+  const db={cl_settings_v2:{enabled:true,threshold:3,aiEnabled:true,shareFrame:true,bridgeToken:'test-pairing',countUnit:'accounts'}};
   let handler;let calls=0;
   const chrome={storage:{local:{get:async keys=>Object.fromEntries(keys.map(k=>[k,db[k]])),set:async v=>Object.assign(db,v)}},runtime:{onMessage:{addListener:f=>handler=f}},tabs:{create:async()=>({})}};
   const context=vm.createContext({chrome,console,BigInt,crypto:require('node:crypto').webcrypto,setTimeout,clearTimeout,URL,AbortController,Date,Math,

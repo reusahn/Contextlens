@@ -7,8 +7,40 @@ const CL_TOPICS = Object.freeze([
 const CL_DEFAULTS = Object.freeze({
   enabled: true, threshold: 3, aiEnabled: false, shareFrame: false,
   bridgeUrl: 'http://127.0.0.1:8766', bridgeToken: '',
-  originTraceUrl: 'http://localhost:5173/', alwaysShow: []
+  originTraceUrl: 'http://localhost:5173/', alwaysShow: [], countUnit: 'posts'
 });
+
+// Counts stay inside one verified target group. Unit selection never merges groups.
+function clCountUnit(settings={}) { return settings.countUnit==='accounts'?'accounts':'posts'; }
+function clPostKey(value) {
+  try {
+    const url=new URL(value),host=url.hostname.toLowerCase().replace(/^www\./,'');
+    if(host==='instagram.com') {
+      const match=url.pathname.match(/^\/(?:reel|reels|p)\/([A-Za-z0-9_-]+)\/?$/);
+      return match?'instagram:'+match[1]:'';
+    }
+    if(host==='127.0.0.1'&&url.port==='8765') {
+      if(url.pathname==='/real.html'&&/^#clip-[A-Za-z0-9_-]+$/.test(url.hash))return url.origin+url.pathname+url.hash;
+      if(/^\/clip[-/][A-Za-z0-9_-]+\/?$/.test(url.pathname))return url.origin+url.pathname.replace(/\/$/,'');
+    }
+  } catch {}
+  return '';
+}
+function clScenePosts(scene={}) {
+  const result=new Map();
+  for(const item of [...(scene.posts||[]),...(scene.accounts||[])]) {
+    const key=clPostKey(item.postUrl);
+    if(key&&!result.has(key))result.set(key,{...item,key});
+  }
+  return [...result.values()];
+}
+function clSceneCount(scene={},settings={}) {
+  return clCountUnit(settings)==='posts'?clScenePosts(scene).length:new Set((scene.accounts||[]).map(v=>clNormalizeAccount(v.account)).filter(Boolean)).size;
+}
+function clCategoryLabel(concept={}) {
+  const label=String(concept.contentType||'').trim();
+  return label&&label.length<=36?label:String(concept.format||'Other');
+}
 
 // One concrete viral identity is independent of its presentation as a tutorial,
 // challenge, reaction or remix. Subject/format alone are NEVER a group key.
@@ -130,4 +162,4 @@ function clRankCandidates(observation,candidates,limit=8) {
   for(const item of [...remaining.filter(x=>x.value.topic===observation?.topic),...remaining])if(primary.length<count&&!primary.includes(item))primary.push(item);
   return primary.map(x=>({...x.value,retrievalScore:Number(x.score.toFixed(3))}));
 }
-if (typeof module !== 'undefined') module.exports = {CL_TOPICS, CL_DEFAULTS, clClampThreshold, clNormalizeAccount, clHamming, clCompareSamples, clOfflineHint, clCanonicalIdentity,clSearchTokens,clDescriptorText,clRankCandidates};
+if (typeof module !== 'undefined') module.exports = {CL_TOPICS, CL_DEFAULTS, clClampThreshold, clNormalizeAccount, clHamming, clCompareSamples, clOfflineHint, clCanonicalIdentity,clSearchTokens,clDescriptorText,clRankCandidates,clCountUnit,clPostKey,clScenePosts,clSceneCount,clCategoryLabel};

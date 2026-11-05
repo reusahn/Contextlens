@@ -37,3 +37,40 @@ test('OriginTrace opens a new tab and rejects unsafe destination schemes',async(
 test('unsupported sites cannot register observations',async()=>{
  const app=setup(async()=>({}));const result=await app.send({type:'CL_REGISTER'},'https://unrelated.example/');assert.equal(result.ok,false);assert.match(result.reason,/Unsupported/);
 });
+test('one account, different posts of a verified target reaches N; replay does not count',async()=>{
+ let calls=0;
+ const dance={...identified,contentType:'Dance',topic:'Entertainment',format:'Challenge',identityScope:'action',viralKey:'v-shaped-arm-footwork',label:'V-shaped arm and footwork sequence'};
+ const app=setup(async(url,opts)=>{calls++;const p=JSON.parse(opts.body);return okay(url.endsWith('/api/describe')?dance:{...dance,matchId:p.candidates[0].id,matchConfidence:.95,matchBasis:'same-action-format',verification:{status:'matched',sharedCues:['V-shaped arms followed by wrist crossing','two side steps then heel lift'],conflicts:[],reason:'Same ordered movement; different performer and outfit.'}});});
+ const a=await app.register('demo_account',1),b=await app.register('demo_account',2),c=await app.register('demo_account',3);
+ assert.deepEqual([a.count,b.count,c.count],[1,2,3]);assert.equal(c.fold,true);assert.equal(c.unit,'posts');
+ assert.equal(c.scene.accounts.length,1);assert.equal(c.scene.posts.length,3);
+ const before=calls,replay=await app.register('demo_account',2);
+ assert.equal(replay.count,3);assert.equal(calls,before);assert.equal(replay.sceneId,a.sceneId);
+ app.data.cl_settings_v2.countUnit='accounts';
+ assert.equal((await app.register('demo_account',3)).count,1);
+});
+test('same display category never merges different campaigns or products',async()=>{
+ let n=0;
+ const cases=[
+  {...identified,contentType:'Protest',label:'Purple campaign',viralKey:'purple-circle-cross',identityScope:'campaign'},
+  {...identified,contentType:'Protest',label:'Yellow campaign',viralKey:'yellow-circle-cross',identityScope:'campaign'},
+  {...identified,topic:'Food',contentType:'Cake',label:'Green layer cake',viralKey:'green-layer-cake',identityScope:'product'},
+  {...identified,topic:'Food',contentType:'Cake',label:'Chocolate cake',viralKey:'chocolate-cake',identityScope:'product'}
+ ];let current;
+ const app=setup(async url=>{if(url.endsWith('/api/describe'))return okay(current=cases[n++]);return okay({...current,verification:{status:'distinct',reason:'Different target; display category alone is not identity.',sharedCues:[],conflicts:['different target']}});});
+ const results=[];for(let i=1;i<=4;i++)results.push(await app.register('demo_account',i));
+ assert.deepEqual(results.map(v=>v.count),[1,1,1,1]);assert.equal(new Set(results.map(v=>v.sceneId)).size,4);
+});
+test('uncertain or insufficient targets explain why they were not counted',async()=>{
+ const app=setup(async()=>okay({...identified,specificity:'insufficient',viralKey:'',visualEvidence:'Only a static pose is readable.'}));
+ const result=await app.register('demo_account',1);assert.equal(result.status,'unclassified');
+ assert.match(app.data.cl_diagnostics_v1[0].status,/uncertain/);assert.match(app.data.cl_diagnostics_v1[0].detail,/specificity: insufficient/);
+ assert.equal(app.data.cl_library_v2,undefined);
+});
+test('profile or feed URL cannot inflate unique-post count',async()=>{
+ const app=setup(async()=>okay(identified));
+ const input={type:'CL_REGISTER',account:'demo_account',postUrl:'https://www.instagram.com/demo_account/reels/',samples:[{hash:'1234567890abcdef',luma:80},{hash:'abcdef1234567890',luma:100}],imageDataUrls:['frame','frame']};
+ const a=await app.send(input),b=await app.send(input);
+ assert.equal(a.count,0);assert.equal(b.count,0);assert.equal(a.fold,false);
+ assert.match(app.data.cl_diagnostics_v1[0].status,/Post URL unavailable/);
+});

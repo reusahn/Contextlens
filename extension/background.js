@@ -4,7 +4,7 @@ const read=keys=>chrome.storage.local.get(keys),put=data=>chrome.storage.local.s
 let work=Promise.resolve(),bridgeLimitReached=false;
 async function diagnose(status,detail='') {
   const stored=await read([DIAG_KEY]),entries=Array.isArray(stored[DIAG_KEY])?stored[DIAG_KEY]:[];
-  entries.unshift({time:new Date().toISOString(),status:String(status).slice(0,65),detail:String(detail).slice(0,175)});
+  entries.unshift({time:new Date().toISOString(),status:String(status).slice(0,65),detail:String(detail).slice(0,420)});
   await put({[DIAG_KEY]:entries.slice(0,12)});
 }
 // Preserve existing UUIDs and account counts. A generated name is not proof
@@ -33,6 +33,9 @@ function safeOriginTraceUrl(setting,payload) {
 function addAccount(scene,account,postUrl,caption) {
   scene.accounts=scene.accounts||[];
   if(!scene.accounts.some(x=>x.account===account))scene.accounts.push({account,postUrl:String(postUrl||'').slice(0,500),caption:String(caption||'').slice(0,500),time:Date.now()});
+  const posts=clScenePosts(scene),key=clPostKey(postUrl);
+  if(key&&!posts.some(v=>v.key===key))posts.push({key,account,postUrl:String(postUrl).slice(0,500),caption:String(caption||'').slice(0,500),time:Date.now()});
+  scene.posts=posts;
 }
 function bestScene(samples,library) {
   let best=null;
@@ -63,18 +66,18 @@ async function identifyMotif(settings,library,media) {
     if(!CL_TOPICS.includes(observation.topic))throw Error('Invalid AI category');
     const candidates=Object.entries(library).filter(([,v])=>v.concept?.specificity==='specific').slice(0,MAX_SCENES)
       .map(([id,v])=>({id,...v.concept,audioId:v.audioId||'',audioTitle:v.audioTitle||'',priorCaptions:(v.accounts||[]).slice(-2).map(x=>String(x.caption||'').slice(0,150))}));
-    const result=observation.specificity==='specific'&&candidates.length
+    const compared=observation.specificity==='specific'&&candidates.length>0;
+    const result=compared
       ?await bridgeRequest('/api/match',settings,{evidenceId:observation.evidenceId,audioId:media.audioId||'',candidates})
-      :{...observation,verification:{status:'distinct',reason:'First observed specific target.',sharedCues:[],conflicts:[]}};
-    await diagnose('AI observed and verified',`${result.label||'Unknown'} / ${result.verification?.status||result.specificity} / ${result.analysis?.frameCount||0} frames`);
-    return result;
+      :{...observation,verification:{status:observation.specificity==='specific'?'new':'uncertain',reason:observation.specificity==='specific'?'First observed specific target.':'Observation did not establish a specific target.',sharedCues:[],conflicts:[]}};
+    return {...result,compared};
   }catch(error) {
     if(error.localQuota){bridgeLimitReached=true;await diagnose('AI budget exhausted','Semantic matching paused; existing groups remain available.');return {quotaExhausted:true};}
     await diagnose('AI request failed',error.message);return null;
   }
 }
 function conceptOf(v) {
-  const fields=['topic','format','keyword','label','action','visualEvidence','specificity','viralKey','identityScope','aliases','entities','distinctiveCues','ocrText','semanticDescription','evidenceId','inferenceVersion'];
+  const fields=['topic','contentType','format','keyword','label','action','visualEvidence','specificity','viralKey','identityScope','aliases','entities','distinctiveCues','ocrText','semanticDescription','evidenceId','inferenceVersion'];
   return Object.fromEntries(fields.filter(k=>v[k]!==undefined).map(k=>[k,v[k]]));
 }
 async function register({account,samples,caption='',postUrl='',imageDataUrls=[],frameTimes=[],audioId='',audioTitle=''}) {
@@ -84,12 +87,16 @@ async function register({account,samples,caption='',postUrl='',imageDataUrls=[],
   const normalized=clNormalizeAccount(account);
   if(!normalized)return {ok:false,reason:'Account not identified; no blur applied.'};
   if(!Array.isArray(samples)||samples.length<2||samples.length>8||samples.some(s=>!/^[0-9a-f]{16}$/.test(s?.hash||'')))return {ok:false,reason:'Not enough distinct video frames; no blur applied.'};
-  const exact=bestScene(samples,library);let sceneId=exact?.id||null,identified=null,matchingMode=exact?'matching-footage':'new-video';
+  const postKey=clPostKey(postUrl),registeredId=postKey&&Object.keys(library).find(id=>clScenePosts(library[id]).some(v=>v.key===postKey));
+  const exact=registeredId?null:bestScene(samples,library);let sceneId=registeredId||exact?.id||null,identified=null,matchingMode=registeredId?'same-post':exact?'matching-footage':'new-video';
   if(!sceneId) {
     identified=await identifyMotif(settings,library,{caption,postUrl,imageDataUrls,frameTimes,audioId,audioTitle});
     if(identified?.quotaExhausted)return {ok:false,status:'budget-exhausted',reason:'Local Meta-call limit reached — not counted.'};
     if(!identified&&settings.aiEnabled&&settings.shareFrame&&settings.bridgeToken)return {ok:false,retryable:true,reason:imageDataUrls.length<2?'Video frames unavailable — not counted.':'AI unavailable — not counted. Click Retry.'};
-    if(identified?.specificity==='insufficient'||identified?.verification?.status==='uncertain')return {ok:false,status:'unclassified',reason:'Insufficient evidence for a reliable identity — not counted.'};
+    if(identified?.specificity==='insufficient'||identified?.verification?.status==='uncertain') {
+      await diagnose('AI uncertain · not counted',`${identified.label||'Unknown'} / specificity: ${identified.specificity} / ${identified.verification?.reason||'Insufficient evidence'} / confidence: ${identified.matchConfidence||0}`);
+      return {ok:false,status:'unclassified',reason:identified.verification?.reason||'Insufficient evidence for a reliable identity — not counted.'};
+    }
     sceneId=findMotifCandidate(identified,library);
     if(sceneId)matchingMode='same-specific-viral-content';
   }
@@ -102,6 +109,7 @@ async function register({account,samples,caption='',postUrl='',imageDataUrls=[],
       scene.concept.aliases=[...new Set([...(scene.concept.aliases||[]),...(identified.aliases||[])])].slice(0,12);
       scene.concept.evidenceId=identified.evidenceId;
       if(scene.concept.format!=='Challenge'&&identified.format==='Challenge')scene.concept.format='Challenge';
+      if(!scene.concept.contentType&&identified.contentType)scene.concept.contentType=identified.contentType;
     }
     scene.hint=hint;
     scene.lastDecision={mode:matchingMode,...identified.verification,time:Date.now()};
@@ -116,8 +124,12 @@ async function register({account,samples,caption='',postUrl='',imageDataUrls=[],
   const entries=Object.entries(library).sort((a,b)=>(a[1].updatedAt||0)-(b[1].updatedAt||0));
   for(const [oldId]of entries.slice(0,Math.max(0,entries.length-MAX_SCENES)))delete library[oldId];
   await put({[LIBRARY_KEY]:library});
-  const count=scene.accounts.length,fold=count>=clClampThreshold(settings.threshold)&&!(settings.alwaysShow||[]).includes(sceneId);
-  return {ok:true,sceneId,count,fold,scene,hint:scene.hint,concept:scene.concept,matchingMode,matchedFrames:exact?.matchedFrames||0};
+  const unit=clCountUnit(settings),count=clSceneCount(scene,settings),fold=count>=clClampThreshold(settings.threshold)&&!(settings.alwaysShow||[]).includes(sceneId);
+  const reason=identified?.verification?.reason||scene.lastDecision?.reason||'Already observed post.';
+  await diagnose(identified?(identified.compared?'AI compared targets':'AI observed target'):'Previously observed footage',
+    `${scene.concept?.label||'Matching footage'} / ${count}/${clClampThreshold(settings.threshold)} ${unit} / ${identified?.verification?.status||matchingMode} / ${identified?.analysis?.frameCount||0} frames / ${reason}`);
+  if(unit==='posts'&&!postKey)await diagnose('Post URL unavailable · not added','Open this Reel directly to count its unique post. Feed/profile URLs are not post IDs; replays are never counted as new posts.');
+  return {ok:true,sceneId,count,unit,fold,scene,hint:scene.hint,concept:scene.concept,matchingMode,matchedFrames:exact?.matchedFrames||0};
 }
 chrome.runtime.onMessage.addListener((msg,sender,respond)=>{
   if(msg?.type==='CL_REGISTER') {

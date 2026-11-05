@@ -1,3 +1,9 @@
+# 1.0.1 submission clarification
+
+The prototype now offers Unique posts (default) and Unique accounts as counting units. Both count only within the same target group; generic categories are display labels and do not merge campaigns, products or routines. Replays of one canonical post do not increase its count. Describe this selection accurately in the demo and submission form. Current local validation is 56 regression tests with mocked provider responses; no new live recognition accuracy claim is supported.
+
+Earlier draft below should be read with this updated counting choice.
+
 # ContextLens — Fewer repeats. More context.
 
 ## Problem

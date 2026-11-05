@@ -1,6 +1,6 @@
 {
   "name": "contextlens",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "User-controlled repetition filtering with Meta visual observation and independent phenomenon verification",
   "engines": {

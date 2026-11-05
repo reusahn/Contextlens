@@ -1,3 +1,9 @@
+# 1.0.1 validation update (2026-11-04)
+
+56 local regression tests pass. JavaScript syntax and manifest checks pass. New tests exercise unique-post versus unique-account counting, replay deduplication, canonical permalink extraction, same-category/different-target separation, uncertain-observation diagnostics, and preservation of intermediate frames across describe/cache/verify. Model responses are mocked; these tests do not measure live recognition of the user-created clips. No paid provider calls were made for this update. Live Instagram and browser interaction tests were not run in this environment for this update.
+
+Earlier validation below refers to the prior revision, not a new live provider run.
+
 # Validation for this revision
 
 | Check | Result | Scope |

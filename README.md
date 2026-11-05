@@ -1,102 +1,221 @@
-# ContextLens 1.0
+# ContextLens
 
-**Fewer repeats. More context. Your choice.**
+### Fewer repeats. More context. Your choice.
 
-ContextLens is a Chrome Manifest V3 extension that helps a viewer control repeated exposure to a **specific phenomenon** across different posting accounts. Different recordings, tutorials and reviews can share a count when evidence supports the same precise target. At the viewer's chosen N, the clip pauses and blurs. The viewer can reveal it or open the separate OriginTrace investigation project.
+**A Chrome extension that helps viewers notice repeated exposure to the same specific challenge, product, or campaign—and decide when to pause.**
 
-Counts describe distinct accounts observed in this browser. They are not platform-wide popularity or posting totals. A match is an estimate, not verified provenance.
+Built for the Meta Global AI Developer Hackathon with **Meta Muse Spark 1.3**. ContextLens connects a viewer-controlled repetition filter to **OriginTrace**, a separate investigation application.
 
-[한국어 설치·업데이트 안내](README_KO.md) · [Validation](docs/VALIDATION.md) · [A/B judging review](docs/JUDGING_REVIEW_KO.md) · [Three-minute demo](docs/DEMO_EN.md)
+**Prototype 1.0.1** · Chrome Manifest V3 · Node.js 22.13+
 
-## Start
+[Why we built it](#why-we-built-it) · [Demo flow](#demo-flow) · [How it works](#how-it-works) · [Run locally](#run-locally) · [Validation](#validation)
 
-Requires Node.js 22.13 or newer. The extension and bridge have no npm dependencies.
+## Why we built it
 
-1. Keep your existing `bridge/.env`. For a new installation, copy `bridge/.env.example` to `bridge/.env` and enter your own Meta key.
-2. From this directory, run `npm run bridge`. Copy the printed **pairing token** into the extension popup.
-3. At `chrome://extensions`, enable Developer mode and load `extension/`. Turn on AI recognition and frame sharing if you want semantic matching.
+A new post is not always a new idea.
 
-**Updating an installed extension:** copy the new extension files into the existing extension directory and click its **Reload** button. Keep the same extension ID to retain Chrome storage. Keep the old `bridge/.env`; never replace it with a blank example. New uploads of this package omit keys.
+Different creators can repeat the same dance challenge, promote the same product, or circulate the same political campaign. A viewer may encounter that pattern without seeing how often it has appeared. At the same time, posts about the same broad subject can concern entirely different things.
 
-`npm run feed` serves `http://127.0.0.1:8765/`. Open `/real.html` there to play your own local clips with editable account/caption fields. The synthetic feed is a UI fixture, not a recognition benchmark. OriginTrace remains a separate project in `origintrace-web/`; use its README to start it, then set its URL in the popup.
+We built ContextLens to make that repetition visible and give the viewer a practical choice: **continue watching, take a pause, or investigate further**. The intended benefit is greater awareness and control over attention; it has not yet been measured in a user study.
 
-## What changed
+The viewer chooses the threshold. ContextLens applies it to a specific tracked target, rather than treating every cake, dance, or political video as one group.
 
-| Area | Uploaded prototype | This revision |
+## What the viewer can do
+
+| Capability | Behavior |
+| --- | --- |
+| Recognize a repeated target | Compare visible footage and semantic observations across posts, even when presenters or filming conditions change. |
+| Choose a repetition limit | Set **N from 2 to 25**. |
+| Choose the counting unit | **Unique posts** includes different posts from one account. **Unique accounts** counts each posting account once per target. |
+| Pause and blur | When a tracked target reaches N, matching content pauses and blurs. |
+| Keep watching | **Show video** removes the blur and resumes playback after the viewer clicks. |
+| Investigate | Open OriginTrace with the current post URL and caption prefilled; the viewer starts its separate analysis. |
+
+Counts describe content observed in this browser. They are **not platform-wide popularity, reach, or upload totals**. Reopening one canonical post does not increase its unique-post count.
+
+```mermaid
+flowchart TD
+    A["Watch a post"] --> B["Track a specific target"]
+    B --> C{"Chosen threshold reached?"}
+    C -->|No| D["Keep watching"]
+    C -->|Yes| E["Pause and blur"]
+    E -->|Show video| D
+    E -->|Investigate| F["Open OriginTrace"]
+    F --> G["Viewer starts deeper analysis"]
+```
+
+## Demo flow
+
+The controlled demo uses fictional test content to illustrate these intended distinctions. These are **test cases, not measured recognition results**.
+
+| Case | Intended grouping |
+| --- | --- |
+| Different performers repeat the same evidenced choreography | One specific challenge, when distinctive movement cues support the match. |
+| Different recordings repeat the same fictional Purple campaign | One campaign, when the campaign details align. |
+| A fictional Yellow campaign appears between Purple posts | A separate target; Purple's existing count persists. |
+| Different posts promote the same named green matcha cake | One specific product, when product details align. |
+| A strawberry cake or chocolate cake appears | Separate products, even though the display category is also **Cake**. |
+
+To demonstrate the interaction, select **Unique posts**, set **N = 2**, and watch two different posts that the system verifies as the same target. Show the count, blur, **Show video**, and **Investigate** handoff. Any shortened analysis waits in the demo video should be identified as shortened.
+
+**Subject, content type, format, and target have different jobs.** For example, a post can have the subject *Food*, content type *Cake*, format *Advertisement*, and a specific named cake as its target. The first three labels do not authorize a merge.
+
+## How it works
+
+ContextLens combines approximate visual matching with an **observe → retrieve → verify** pipeline.
+
+1. **Observe.** With AI recognition and frame sharing enabled, the extension captures up to eight timestamped JPEG frames while a clip is visible. Muse Spark describes the target, actions, visible text, entities, distinctive cues, and uncertainty **without seeing candidate groups**.
+2. **Retrieve.** Local application code searches up to 500 stored group descriptors using multilingual terms, aliases, OCR text, and action descriptions. It shortlists up to eight candidates. This is weighted text retrieval, not a vector embedding model.
+3. **Verify.** A separate Spark request compares the observation with shortlisted targets. It receives the current chronological frames and, when available, up to four evenly spaced reference frames for each of the top three candidates. This preserves intermediate motion rather than comparing endpoints alone.
+4. **Count and act.** Application code accepts a supported target match, deduplicates posts or accounts, saves the count, and applies the viewer's threshold. A new specific target gets its own group. Uncertain semantic results remain visible and are not counted.
+
+A merge requires a valid candidate ID, at least two distinct shared cues, no reported conflicts, an accepted match basis, and a heuristic model confidence of at least **0.84**. That threshold is **not a calibrated probability**. A shared name, topic, category, or soundtrack cannot independently authorize a merge.
+
+Before semantic analysis, local ordered perceptual hashes and coarse color layout can recognize similar previously observed footage. This is an approximate shortcut; it is not Meta vPDQ or proof of identity.
+
+```mermaid
+flowchart TD
+    A["Visible Instagram video"] --> B["Extension: sample frames and fingerprint"]
+    B --> C["Local Node bridge"]
+    C --> D["Meta Muse Spark 1.3"]
+    D --> C
+    C --> E["Extension: target groups and counts"]
+    E --> F["Pause, blur, or reveal"]
+    F -->|URL and caption after a click| G["OriginTrace: separate investigation"]
+```
+
+### Why Meta matters
+
+The central recognition task is semantic: different recordings may depict the same precise phenomenon, while superficially similar recordings may depict different targets. Spark supplies visual and language interpretation for that comparison, including structured descriptions and uncertainty.
+
+Meta is used in the recognition decision itself. Deterministic code handles retrieval, evidence checks, deduplication, counters, playback, and request limits. Separating observation from comparison reduces reliance on one prompt that both describes a clip and chooses its group; it does not eliminate model errors.
+
+## Deeper investigation with OriginTrace
+
+**ContextLens** controls repeated exposure during viewing. **OriginTrace**, contributed by Tzulun Huang / Leahsoda, investigates a selected clip through accessible media clues, captions or transcripts, related web sources, and available publication metadata.
+
+The handoff opens a new tab and prefills the URL and caption. It **does not automatically start research or download media**. After the viewer selects **Analyze**, OriginTrace runs its own configured workflow.
+
+Reports expose sources, context, available timelines, and uncertainty. A related article is not automatically a confirmed appearance of the same footage. Publication order does not prove copying, the first upload, the recording date, or the original creator. **Insufficient evidence** is a valid outcome.
+
+OriginTrace has Spark-based frame and text analysis, an optional Meta hosted-search adapter, and configurable speech processing. Enabled features depend on its own environment settings and accessible inputs. The extension itself sends sampled images and metadata, not extracted audio or a downloaded Instagram video.
+
+See [OriginTrace setup](origintrace-web/README.md) and [handoff details](OriginTrace-integration/README.md).
+
+## Run locally
+
+### Requirements
+
+- Chrome with Developer mode available.
+- Node.js **22.13 or newer**.
+- A Meta Model API key with access to Muse Spark 1.3 for semantic recognition.
+- For OriginTrace: npm dependencies and FFmpeg for uploaded-video processing. Some URL extraction paths also require yt-dlp.
+
+The extension and ContextLens bridge have no npm dependencies. **OriginTrace has a separate install and configuration.**
+
+### 1. Start the ContextLens bridge
+
+From the repository root, for a **new installation only**:
+
+```bash
+cp bridge/.env.example bridge/.env
+```
+
+Set `META_API_KEY` in `bridge/.env`, then run:
+
+```bash
+npm run bridge
+```
+
+Preserve an existing `.env` instead of overwriting it. Keep the printed pairing token for the next step. The bridge listens at **http://127.0.0.1:8766**.
+
+### 2. Load the Chrome extension
+
+1. Open `chrome://extensions` and enable **Developer mode**.
+2. Select **Load unpacked** and choose this repository's **extension/** directory.
+3. In the ContextLens popup, paste the **pairing token**, not the Meta API key.
+4. Enable **AI recognition** and **Share sampled frames** to use semantic recognition.
+5. Select **Unique posts** or **Unique accounts**, choose N, and save.
+6. Refresh the Instagram tab and play a clip until analysis completes.
+
+With AI disabled or frames withheld, recognition is limited to approximate matching footage. If the post permalink is unavailable, unique-post mode does not invent an ID: open the Reel directly and refresh. Diagnostics distinguish observation uncertainty, comparison decisions, and missing post URLs.
+
+### 3. Start OriginTrace in another terminal
+
+```bash
+cd origintrace-web
+npm ci
+# New installation only; preserve an existing .env:
+cp .env.example .env
+```
+
+Configure **origintrace-web/.env** separately, following its [README](origintrace-web/README.md). Then:
+
+```bash
+npm run dev
+```
+
+Open **http://127.0.0.1:5173/** and use that address in the extension's **OriginTrace website** setting. The development backend uses port **3001**. Keep both the bridge and OriginTrace running.
+
+**Search configuration matters:** OriginTrace's default strict billing mode blocks Meta hosted search. Its README explains explicit best-effort opt-in and the estimated billing tradeoff, as well as the alternative provider configuration. Do not treat a loaded report page as proof that retrieval succeeded.
+
+When updating, preserve existing environment files and accounting records.
+
+## Data handling and usage controls
+
+- **Opt-in frame sharing:** semantic recognition requires both AI recognition and sampled-frame sharing to be enabled.
+- **Backend credentials:** the Meta key stays in the bridge environment; the extension stores a local pairing token.
+- **Local history:** Chrome stores target descriptors, fingerprints, post/account evidence, and counts—not sampled JPEGs.
+- **Temporary frame cache:** the bridge retains up to 32 observations, including up to eight frames each, in memory for up to one hour. A restart clears that cache.
+- **Request accounting:** `DAILY_META_LIMIT=200` limits actual bridge inference attempts, including verification and retries. It persists across restarts and resets at UTC midnight. It is a local request limit, not a provider billing cap.
+- **Separate investigation boundary:** OriginTrace has its own credentials, media processing, source requests, and budget ledger. Review its configuration before enabling those features.
+
+Do not commit real `.env` files, pairing tokens, usage ledgers, private uploads, or private evaluation results. The repository includes example environment files and ignore rules.
+
+## Validation
+
+| Check | Recorded result | What it establishes |
 | --- | --- | --- |
-| Visual input | At most 3 images, 240×240; could start with 2 | Up to 8 timestamped frames, aspect ratio preserved, 512px long edge |
-| Evidence collection | Could inspect off-screen clips | Capture only while visible; finish a partially observed clip after scrolling |
-| Recognition | One prompt identifies and chooses a group | Observe without candidates, retrieve using the observation, independently verify identity |
-| Retrieval | Caption/recent history, first 35 groups | All stored descriptors, up to 500; Unicode terms, Korean bigrams, OCR, aliases, actions and audio metadata; rerank to 8 candidates |
-| Merge policy | A shared key or audio-title path could bypass verification | UUID-based groups; no automatic key/audio merge; two distinct shared cues and no contradictions required |
-| UI | Card inside the platform's stacking context | Shadow DOM portal outside the platform tree, manual top-layer popover, native button semantics |
-| API guard | 200 configured became 100; restart reset usage | 200 is accepted, each attempt counted, ledger survives restarts, UTC rollover |
-| Evaluation | Synthetic feed and model mocks | Labelled local-video comparison tool, regression tests, separately labelled real-provider contract checks |
+| ContextLens regression suite | **56 passed** | Counting units, replay deduplication, permalink boundaries, retrieval, match guards, temporal-frame delivery, diagnostics, and budget behavior. |
+| JavaScript syntax and manifest checks | **Passed; 25 files** | Syntax validity and declared content-script presence. |
+| Earlier real-provider smoke checks | Recorded in [validation](docs/VALIDATION.md) | Request/response behavior on synthetic fixtures; not real-world recognition accuracy. |
+| Live recognition on the generated demo videos | **Not measured for this revision** | Requires direct evaluation; passing mocked tests does not establish model accuracy. |
+| Full OriginTrace suite and live browser automation | **Not established by the ContextLens checks** | Must be evaluated separately. |
 
-There is **no measured improvement percentage on real Instagram clips yet**. Better input and more careful grouping can trade latency and recall for fewer false merges. Measure these tradeoffs with the benchmark before making accuracy claims.
-
-## Recognition
-
-Local perceptual hashes and coarse colour layout first look for matching footage. This is an approximate filter, not Meta vPDQ and not proof of identity. For a visually different clip, opt-in Meta Muse Spark 1.3:
-
-1. Extracts a specific target, identity scope, observed action, objects/entities, OCR, bilingual aliases, distinctive cues and uncertainty, without seeing candidates.
-2. Uses those descriptors to search all stored groups. Retrieval is weighted text matching over model-produced descriptors, not a vector embedding model.
-3. Independently verifies up to eight candidates. Current frames and available prior reference frames support the decision. Contradictory or uncertain candidates do not increase counts.
-
-Subject, format and identity are separate. The 15 existing subjects remain. No named trend is hardcoded in the active model prompts. A legacy Slick Back spelling alias remains only for stored-key compatibility. A model confidence threshold is a heuristic, not a calibrated probability.
-
-The Instagram extension sends **sampled images and post metadata**, not downloaded video or extracted audio. The local benchmark also supports user-provided MP4 clips. Spark 1.3 audio understanding is limited; this revision makes no claim of soundtrack recognition, full-video Instagram analysis, automatic original-source discovery, SAM segmentation or ASR integration.
-
-The bridge keeps up to 32 recent observations and reference images in memory for one hour; restarting clears them. Chrome retains group descriptors, fingerprints, counts and account/post evidence, not JPEGs or keys. Old UUIDs and account counts are preserved; groups are not merged merely because their names agree.
-
-## Checks
+Run the dependency-free ContextLens checks from the repository root:
 
 ```bash
 npm run check
 npm test
-node tools/provider-smoke.cjs --run
 ```
 
-The last command uses your Meta key for about six real inference attempts on **synthetic product fixtures**. Stop the bridge before running that standalone smoke command so only one process uses its local usage ledger. It does not estimate real-world recognition accuracy. See `docs/PROVIDER_SMOKE.json` for the recorded result from this revision.
+For local clips, run `npm run feed` and open **http://127.0.0.1:8765/real.html**. Use media you are authorized to test. The page is a manual inspection aid, not an accuracy benchmark.
 
-For the optional Chromium DOM regression:
+An optional labeled-video evaluator lives in [tools/evaluate.cjs](tools/evaluate.cjs), with a [manifest example](benchmarks/manifest.example.json). Paid model requests require its explicit `--run` flag. Evaluation should report false matches, missed repetitions, unclassified clips, latency, and request counts—not only successful examples.
 
-```bash
-npm install --no-save playwright
-npx playwright install chromium
-npm run test:browser
-```
+## Current limits and next steps
 
-Alternatively run `node tools/browser-fixture.cjs` and open its printed URL in Chrome. Its recognition and counts are stubbed; it checks pointer, keyboard, stacking and scrolling behaviour. Live Instagram verification is still necessary.
+Recognition is experimental. Sparse frames, compression, occlusion, unfamiliar movement, and inconsistent descriptions can produce missed or incorrect matches. Instagram layout changes and inaccessible media can also prevent analysis. The extension does not run ASR, recognize soundtracks from audio, verify political claims, or determine whether a product advertisement is truthful.
 
-## Real-video benchmark
+The next priorities are a labeled positive/negative clip set, measured recognition and latency comparisons, stronger motion correspondence, and clearer user review of ambiguous groups. OriginTrace additionally needs broader evidence coverage and production hardening. No measured accuracy improvement or user-impact result is claimed here.
 
-Requires local `ffmpeg` and `ffprobe`, your labelled video files, and a running bridge. See `benchmarks/manifest.example.json`. Put a stable pairing token in `CL_BRIDGE_TOKEN` in your local `.env`, or set `CL_BENCH_TOKEN` to the running bridge's token.
+## Repository map
 
-```bash
-# No API calls: validate paths and labels.
-node tools/evaluate.cjs --manifest /path/to/manifest.json --mode frames
-# Explicit --run enables paid requests through the bridge's daily guard.
-node tools/evaluate.cjs --manifest /path/to/manifest.json --mode baseline --run
-node tools/evaluate.cjs --manifest /path/to/manifest.json --mode frames --run
-node tools/evaluate.cjs --manifest /path/to/manifest.json --mode video --run
-```
+| Path | Purpose |
+| --- | --- |
+| [extension/](extension/) | Chrome UI, frame capture, local history, counting, and playback control. |
+| [bridge/](bridge/) | Authenticated local Meta requests, observation, verification, frame cache, and attempt ledger. |
+| [origintrace-web/](origintrace-web/) | Separate OriginTrace frontend and backend. |
+| [OriginTrace-integration/](OriginTrace-integration/) | URL/caption handoff documentation. |
+| [tests/](tests/) | ContextLens local regression tests. |
+| [tools/](tools/) | Checks, provider smoke, browser fixture, and labeled-video evaluation. |
+| [docs/VALIDATION.md](docs/VALIDATION.md) | Test scope, recorded results, and evaluation limits. |
 
-Use the same ordered manifest for each run. Ground-truth group IDs are never sent to the model. Reports include pairwise precision/recall, false blur and missed repetition rates, unclassified rate, p50/p95 analysis latency and actual Meta attempts. Unknown pricing is left blank. This evaluates the semantic path; it is not a full browser or source-verification benchmark. Baseline is the uploaded v0.9 inference engine, retained in `benchmarks/baseline-v09.cjs`.
+## Team and attribution
 
-`DAILY_META_LIMIT=200` means 200 **attempts**, not 200 videos. An unseen specific clip often needs one observation; comparison with an existing library normally adds a verification attempt. Malformed completions may add one bounded retry per phase. The local guard is not a provider billing limit. Use one running bridge per ledger.
+- **Jonghoon Ahn** — ContextLens extension and companion bridge.
+- **Tzulun Huang / Leahsoda** — OriginTrace investigation application.
 
-## Submission
+ContextLens and OriginTrace retain their distinct names and attribution. This is an independently developed hackathon prototype using Meta models.
 
-Use `docs/SUBMISSION_EN.md`, `docs/DEMO_EN.md`, and `docs/JUDGING_REVIEW_KO.md`. They distinguish completed engineering from pending real-data evidence. Do not describe the synthetic API checks as Instagram accuracy, web search results as the first original upload, or a target rubric as an awarded score.
-
-Before publishing a repository, exclude `.env`, pairing tokens, usage ledgers, node_modules, private uploads and private benchmark results. The supplied package omits credentials. Read the collaborator's licensing and attribution requirements before publishing their OriginTrace code.
-
-## Primary technical references
-
-- [Meta image understanding](https://dev.meta.ai/docs/image-understanding)
-- [Meta video understanding and Spark 1.3 audio limitations](https://dev.meta.ai/docs/video-understanding)
-- [Meta inline file handling](https://dev.meta.ai/docs/file-handling)
-- [Meta media segmentation: SAM produces geometry, not phenomenon identity](https://dev.meta.ai/docs/media-segmentation)
-- [Chrome extension service-worker lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)
-- [Manual popovers](https://developer.mozilla.org/en-US/docs/Web/API/Popover_API)
+**License status:** no repository-wide `LICENSE` file is currently included. A project-wide license needs agreement from the relevant contributors before an open-source release; no blanket license is asserted by this README.

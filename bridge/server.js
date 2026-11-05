@@ -19,7 +19,7 @@ function createBridge({token,modelApiKey='',maxDaily=200,budgetFile='',fetchImpl
     const origin=req.headers.origin||'',allowed=/^chrome-extension:\/\/[a-p]{32}$/.test(origin);
     if(allowed){res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Access-Control-Allow-Headers','Content-Type,X-ContextLens-Token');res.setHeader('Access-Control-Allow-Methods','POST,OPTIONS,GET');res.setHeader('Vary','Origin');}
     if(req.method==='OPTIONS'){res.writeHead(allowed?204:403);res.end();return;}
-    if(req.method==='GET'&&req.url==='/health'){write(res,200,{status:'ready',model:'muse-spark-1.3',keyConfigured:!!modelApiKey,remaining:budget.remaining(),limit:budget.limit,used:budget.used(),date:budget.date(),resetAt:'UTC midnight',pipeline:'observe-retrieve-verify-v2'});return;}
+    if(req.method==='GET'&&req.url==='/health'){write(res,200,{status:'ready',model:'muse-spark-1.3',keyConfigured:!!modelApiKey,remaining:budget.remaining(),limit:budget.limit,used:budget.used(),date:budget.date(),resetAt:'UTC midnight',pipeline:'observe-retrieve-verify-v3-temporal'});return;}
     if(req.method!=='POST'||!['/api/context','/api/viral','/api/describe','/api/match','/api/baseline'].includes(req.url)){write(res,404,{error:'Not found'});return;}
     if(req.headers['x-contextlens-token']!==token){write(res,401,{error:'Invalid pairing token'});return;}
     try {
@@ -46,7 +46,7 @@ function createBridge({token,modelApiKey='',maxDaily=200,budgetFile='',fetchImpl
         else {
           const observation=await describeViral(common),id=crypto.randomUUID();
           observation.evidenceId=id;
-          const frames=readableFrames(payload.imageDataUrls),row={id,time:Date.now(),observation,frames:[frames[0],frames.at(-1)].filter(Boolean)};
+          const frames=readableFrames(payload.imageDataUrls),row={id,time:Date.now(),observation,frames};
           cache.set(digest,row);byId.set(id,row);prune();result=observation;
         }
       }else if(req.url==='/api/match') {

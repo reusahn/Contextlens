@@ -40,3 +40,16 @@ test('health reports the configured 200 call cap and CORS rejects arbitrary webs
  const {base}=await running(t,async()=>answer(observation));const h=await (await fetch(base+'/health')).json();assert.equal(h.limit,200);
  const r=await fetch(base+'/api/describe',{method:'OPTIONS',headers:{Origin:'https://unrelated.example'}});assert.equal(r.status,403);
 });
+test('describe cache retains all eight frames for the later match request',async t=>{
+ let images;
+ const {post}=await running(t,async(_,opts)=>{
+  const body=JSON.parse(opts.body);
+  if(body.response_format.json_schema.name==='clip_observation')return answer(observation);
+  images=body.messages[1].content.filter(v=>v.type==='image_url').map(v=>v.image_url.url);
+  return answer({status:'distinct',matchId:'',matchConfidence:.9,matchBasis:'none',sharedCues:[],conflicts:['different product'],reason:'Different specific product.'});
+ });
+ const frames=Array.from({length:8},(_,i)=>'data:image/jpeg;base64,'+String.fromCharCode(65+i).repeat(400));
+ const first=await(await post('/api/describe',{...input,imageDataUrls:frames,frameTimes:[0,1,2,3,4,5,6,7]})).json();
+ await post('/api/match',{evidenceId:first.evidenceId,candidates:[{id:'candidate',...observation}]});
+ assert.deepEqual(images,frames);
+});
