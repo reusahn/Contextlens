@@ -15,6 +15,15 @@ ContextLens groups posts about the same specific trend so viewers can decide whe
 2. In the project, open **AI Services → AI Logic** and select **Get started**. Use the **Gemini Developer API** backend and register a **Web app**. The standard setup can start on Firebase’s no-cost Spark plan, subject to model and project usage limits.
 3. Under **Project settings → General → Your apps**, find the Web app’s Firebase configuration. The app needs the public Web SDK values `apiKey`, `appId`, and `projectId` from that configuration. Under **Security → App Check → APIs**, check that Firebase AI Logic is enforced.
 
+Once Google sign-in and Web app registration are complete, import the configuration in the project folder:
+
+```sh
+npx firebase-tools@15.36.0 login
+npm run firebase:setup -- PROJECT_ID
+```
+
+This reads the registered Web app's SDK configuration through your own CLI session. It writes both Git-ignored configuration files. If the project has multiple Web apps, add the required Web App ID after the project ID. Add the local debug token or the hosted site key separately when you are ready for cloud inference. The setup command does not grant access, create projects, enable services, or deploy.
+
 See [Firebase’s Web setup](https://firebase.google.com/docs/ai-logic/hybrid/web/get-started).
 
 ## Run the extension on a Mac or PC
@@ -25,10 +34,9 @@ Use Node.js 22.13 or newer and a current desktop Chrome. Review the [Chrome mode
 git clone --branch buildhybridai https://github.com/reusahn/Contextlens.git ContextLens-Hybrid
 cd ContextLens-Hybrid
 npm ci
-cp hybrid/firebase.config.example.json hybrid/firebase.config.local.json
 ```
 
-Enter the Firebase Web configuration in the local JSON file. For local cloud testing in the extension, register an App Check debug token for the Web app and enter it in `appCheckDebugToken` in that file. Keep this local file and the generated `extension/hybrid.bundle.js` private. Give each private tester their own setup. The hosted demo below uses a Web App Check provider.
+Run the setup command above, or copy `hybrid/firebase.config.example.json` to `hybrid/firebase.config.local.json` and enter the Firebase Web configuration. For local cloud testing in the extension, register an App Check debug token for the Web app and enter it in `appCheckDebugToken` in that file. Keep this local file and the generated `extension/hybrid.bundle.js` private. Give each private tester their own setup. The hosted demo below uses a Web App Check provider.
 
 ```sh
 npm run build:hybrid
@@ -45,7 +53,7 @@ If setup reports that the model is unavailable, check `chrome://on-device-intern
 ## Host the judge demo
 
 1. In the dedicated Firebase project, set up a Firebase Hosting site such as `PROJECT_ID.web.app`. In the Google Cloud console create a score-based reCAPTCHA Enterprise Web key for that hostname. Then register the Web app under **Security → App Check → Apps** with that site key. Keep Firebase AI Logic enforcement on.
-2. Copy `hybrid/firebase.config.web.example.json` to `hybrid/firebase.config.web.json`. Enter the Firebase Web configuration and the public reCAPTCHA Enterprise site key in `appCheckSiteKey`. The hosted build rejects any App Check debug token.
+2. If you ran the setup command, add the public reCAPTCHA Enterprise site key to `appCheckSiteKey` in `hybrid/firebase.config.web.json`. For manual setup, copy the example Web JSON file and fill in both the Firebase Web configuration and the site key. The hosted build rejects any App Check debug token.
 3. From the repository root, build and deploy to the dedicated demo project:
 
 ```sh
