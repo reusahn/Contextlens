@@ -211,11 +211,8 @@
     const container=st.container;
     if(!container?.isConnected) return;
 
-    // A solitary unrelated post should not appear to reset a previously
-    // recognized trend from 2/3 to 1/3. Show progress on-video from 2/3;
-    // all individual group counts remain visible in the popup.
-    const source = clInferenceLabel(st.inferenceSource || scene.lastDecision?.source);
-    const badgeLabel = source ? `${meta.keyword} · ${source}` : meta.category;
+    const source = clInferenceLabel(st.inferenceSource);
+    const badgeLabel = scene.captionReference ? `${meta.keyword} · ${source || 'Saved result'}` : meta.category;
     statusBadge(st,`${badgeLabel} · ${count}/${threshold} ${unit}`,count>=2?'neutral':'muted');
     st.badge.title=`Subject: ${meta.subject} | Format: ${meta.format} | Target: ${meta.keyword} | ${count} unique ${unit}`;
     if(!active) {video.classList.remove('cl-video-blurred');st.fold?.remove();st.fold=null;st.drawSignature='';return;}
@@ -230,12 +227,12 @@
       CLOverlay.attach(video).appendChild(st.fold);
     }
     const hint=scene.hint||{topic:'Other',context:'Context not yet verified.',evidence:'Unverified'};
-    const signature=JSON.stringify([count,threshold,unit,meta,scene.hint,scene.lastDecision]);
+    const signature=JSON.stringify([count,threshold,unit,meta,scene.hint,scene.lastDecision,source]);
     if(st.drawSignature===signature)return;
     st.drawSignature=signature;
     st.fold.replaceChildren();
     const pill=document.createElement('div');pill.className='cl-kicker';pill.textContent='REPEATED VIRAL CONTENT';
-    const title=document.createElement('div');title.className='cl-title';title.textContent=meta.category;
+    const title=document.createElement('div');title.className='cl-title';title.textContent=scene.captionReference ? meta.keyword : meta.category;
     const badges=document.createElement('div');badges.className='cl-tags';
     const subjectTag=document.createElement('span');subjectTag.className='cl-category cl-subject';subjectTag.textContent=meta.subject;
     badges.append(subjectTag);
@@ -246,7 +243,8 @@
     contextText.className = 'cl-context-text';
     contextText.textContent = String(hint.context || 'Original context not verified.');
     const evidence=document.createElement('div'); evidence.className='cl-evidence';
-    evidence.textContent=hint.evidence || 'AI interpretation · Not verified';
+    evidence.textContent=scene.captionReference ? `Caption evidence · ${source || 'Saved result'}` :
+      (hint.evidence || 'AI interpretation · Not verified');
     const actions=document.createElement('div');actions.className='cl-actions';
     actions.append(
       makeButton('Investigate in OriginTrace ↗','cl-primary',()=>{

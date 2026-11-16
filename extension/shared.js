@@ -37,6 +37,15 @@ function clScenePosts(scene={}) {
 function clSceneCount(scene={},settings={}) {
   return clCountUnit(settings)==='posts'?clScenePosts(scene).length:new Set((scene.accounts||[]).map(v=>clNormalizeAccount(v.account)).filter(Boolean)).size;
 }
+function clAddScenePost(scene, account, postUrl, caption) {
+  const post = { account, postUrl:String(postUrl||'').slice(0,500), caption:String(caption||'').slice(0,500), time:Date.now() };
+  // Recover older stored posts before adding the current account's first entry.
+  const posts = clScenePosts(scene), key = clPostKey(postUrl);
+  if (key && !posts.some(item => item.key === key)) posts.push({ key, ...post });
+  scene.accounts ||= [];
+  if (!scene.accounts.some(item => item.account === account)) scene.accounts.push(post);
+  scene.posts = posts;
+}
 function clCategoryLabel(concept={}) {
   const label=String(concept.contentType||'').trim();
   return label&&label.length<=36?label:String(concept.format||'Other');

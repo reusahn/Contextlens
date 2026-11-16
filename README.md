@@ -10,7 +10,7 @@ Built for the Meta Global AI Developer Hackathon with **Meta Muse Spark 1.3**. C
 
 [Why we built it](#why-we-built-it) · [Demo flow](#demo-flow) · [Core engineering contribution](#core-engineering-contribution) · [How it works](#how-it-works) · [Run locally](#run-locally) · [Validation](#validation)
 
-**Firebase caption comparison** — See the [#BuildHybridAI setup and demo guide](docs/BUILD_HYBRID_AI.md).
+**Firebase caption comparison** · [#BuildHybridAI setup and live verification](docs/BUILD_HYBRID_AI.md) · [Devpost draft and demo plan](docs/DEVPOST_SUBMISSION.md)
 
 ## Why we built it
 
@@ -164,7 +164,7 @@ See [OriginTrace setup](origintrace-web/README.md) and [handoff details](OriginT
 - A Meta Model API key with access to Muse Spark 1.3 for semantic recognition.
 - For OriginTrace: npm dependencies and FFmpeg for uploaded-video processing. Some URL extraction paths also require yt-dlp.
 
-The extension and ContextLens bridge have no npm dependencies. **OriginTrace has a separate install and configuration.**
+The legacy visual mode and its bridge have no npm dependencies. The Firebase caption mode uses the [hybrid build steps](docs/BUILD_HYBRID_AI.md). **OriginTrace has a separate install and configuration.**
 
 ### 1. Start the ContextLens bridge
 

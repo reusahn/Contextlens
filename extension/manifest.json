@@ -9,7 +9,7 @@
   "host_permissions": [
     "http://127.0.0.1:8766/*",
     "https://firebasevertexai.googleapis.com/*",
-    "https://firebaseappcheck.googleapis.com/*"
+    "https://content-firebaseappcheck.googleapis.com/*"
   ],
   "action": {
     "default_title": "ContextLens \u00b7 Settings",

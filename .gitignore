@@ -15,3 +15,5 @@ playwright-report/
 # May contain a local App Check debug token.
 hybrid/firebase.config.local.json
 extension/hybrid.bundle.js
+hybrid/firebase.config.web.json
+dist/

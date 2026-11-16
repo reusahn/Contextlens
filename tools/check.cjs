@@ -1,6 +1,6 @@
 const fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
 const root=path.resolve(__dirname,'..');let count=0;
-for(const dir of ['bridge','extension','test-feed','tools','tests'])for(const name of fs.readdirSync(path.join(root,dir)))if(/\.(?:js|cjs)$/.test(name)) {
+for(const dir of ['bridge','extension','hybrid','test-feed','tools','tests','web-demo'])for(const name of fs.readdirSync(path.join(root,dir)))if(/\.(?:js|cjs|mjs)$/.test(name) && name!=='hybrid.bundle.js') {
  execFileSync(process.execPath,['--check',path.join(root,dir,name)],{stdio:'pipe'});count++;
 }
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'extension/manifest.json')));

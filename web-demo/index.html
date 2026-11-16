@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Try ContextLens caption matching on four fictional posts with Firebase AI Logic.">
+  <title>ContextLens · Interactive demo</title>
+  <link rel="stylesheet" href="demo.css">
+</head>
+<body>
+  <header class="masthead">
+    <a class="wordmark" href="./">Context<span>Lens</span></a>
+    <a class="source-link" href="https://github.com/reusahn/Contextlens/tree/buildhybridai">View source</a>
+  </header>
+  <main>
+    <div class="intro">
+      <h1>See when a trend shows up again.</h1>
+      <p>Compare four fictional posts. When a target reaches your repeat limit, ContextLens pauses the clip until you choose to watch.</p>
+    </div>
+    <div class="workspace">
+      <section class="post" aria-labelledby="post-by">
+        <header class="post-header">
+          <h2 id="post-by"></h2>
+          <span id="post-index"></span>
+        </header>
+        <div class="screen" id="screen">
+          <video id="clip" aria-label="Fictional clip" muted loop playsinline></video>
+          <p id="media-status" class="media-status" role="status">Rendering sample clips…</p>
+          <div class="pause-card" id="pause-card" hidden>
+            <strong>Repeat limit reached</strong>
+            <span id="pause-count"></span>
+            <button type="button" id="reveal">Show video</button>
+          </div>
+        </div>
+        <p id="caption" class="caption"></p>
+        <div class="post-actions">
+          <button type="button" id="analyze" class="primary">Compare caption</button>
+          <button type="button" id="previous">Previous</button>
+          <button type="button" id="next">Next post</button>
+        </div>
+        <p id="comparison" class="result" role="status"></p>
+      </section>
+      <aside class="controls" aria-label="ContextLens controls">
+        <section>
+          <h2>Repeat limit</h2>
+          <div class="settings">
+            <label>Pause after
+              <select id="limit">
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+            </label>
+            <label>Count
+              <select id="unit">
+                <option value="posts">Unique posts</option>
+                <option value="accounts">Unique accounts</option>
+              </select>
+            </label>
+          </div>
+          <div class="history-heading">
+            <h3>Recognized targets</h3>
+            <button id="reset" type="button">Reset</button>
+          </div>
+          <ul id="history" aria-live="polite"></ul>
+        </section>
+        <section>
+          <h2>AI processing</h2>
+          <p id="availability" role="status"></p>
+          <button type="button" id="prepare">Prepare local model</button>
+          <label class="consent"><input type="checkbox" id="cloud"> Allow cloud fallback</label>
+          <p class="privacy">With consent, unavailable local inference sends these fictional captions to Google's Gemini service through Firebase AI Logic.</p>
+          <a id="route-test" href="./fallback.html">Test cloud fallback</a>
+        </section>
+      </aside>
+    </div>
+  </main>
+  <script src="shared.js"></script>
+  <script src="hybrid-decision.js"></script>
+  <script src="hybrid-fixtures.js"></script>
+  <script src="clips.js"></script>
+  <script type="module" src="demo.js"></script>
+</body>
+</html>

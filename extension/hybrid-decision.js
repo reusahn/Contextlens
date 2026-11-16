@@ -35,4 +35,19 @@ function clInferenceLabel(source) {
   return source === 'on_device' ? 'On device' : source === 'in_cloud' ? 'Cloud' : '';
 }
 
+function clApplyCaptionDecision(scene, decision, caption) {
+  scene.captionReference ||= String(caption).trim().slice(0, 500);
+  scene.concept ||= { label:decision.label, contentType:'Other', format:'Other', specificity:'specific' };
+  scene.hint = {
+    topic:'Other', context:scene.concept.label, evidence:'Caption evidence',
+    provider:clInferenceLabel(decision.source)
+  };
+  scene.lastDecision = {
+    mode:'caption-comparison', source:decision.source,
+    reason:decision.status === 'matched' ? 'Identifying details agree across captions.' :
+      'This caption identifies a specific target in the recent comparison set.',
+    time:Date.now()
+  };
+}
+
 if (typeof module !== 'undefined') module.exports = { clCaptionCandidates, clCaptionDecision, clInferenceLabel };

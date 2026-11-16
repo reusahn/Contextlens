@@ -1,0 +1,12 @@
+{
+  "hosting": {
+    "public": "dist/buildhybridai",
+    "ignore": ["**/.*", "**/node_modules/**"],
+    "headers": [
+      {
+        "source": "/fallback.html",
+        "headers": [{ "key": "Permissions-Policy", "value": "language-model=()" }]
+      }
+    ]
+  }
+}

@@ -14,7 +14,8 @@
     "benchmark": "node tools/evaluate.cjs",
     "test:provider": "node tools/provider-smoke.cjs",
     "test:browser": "node tools/browser-smoke.cjs",
-    "build:hybrid": "node tools/build-hybrid.cjs"
+    "build:hybrid": "node tools/build-hybrid.cjs",
+    "build:demo": "node tools/build-hybrid.cjs --web"
   },
   "dependencies": {
     "firebase": "13.3.0"

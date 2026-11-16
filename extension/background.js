@@ -30,13 +30,6 @@ function safeOriginTraceUrl(setting,payload) {
   url.searchParams.set('url',String(payload.postUrl||'').slice(0,1200));
   url.searchParams.set('caption',String(payload.caption||'').slice(0,1600));url.searchParams.set('from','contextlens');return url.href;
 }
-function addAccount(scene,account,postUrl,caption) {
-  scene.accounts=scene.accounts||[];
-  if(!scene.accounts.some(x=>x.account===account))scene.accounts.push({account,postUrl:String(postUrl||'').slice(0,500),caption:String(caption||'').slice(0,500),time:Date.now()});
-  const posts=clScenePosts(scene),key=clPostKey(postUrl);
-  if(key&&!posts.some(v=>v.key===key))posts.push({key,account,postUrl:String(postUrl).slice(0,500),caption:String(caption||'').slice(0,500),time:Date.now()});
-  scene.posts=posts;
-}
 function bestScene(samples,library) {
   let best=null;
   for(const [id,scene]of Object.entries(library))for(const prior of [scene.samples,...(scene.sampleSets||[])]) {
@@ -141,21 +134,14 @@ async function register({account,samples,caption='',postUrl='',imageDataUrls=[],
     scene.hint=hint;
     scene.lastDecision={mode:matchingMode,...identified.verification,time:Date.now()};
   }
-  if (captionDecision) {
-    scene.captionReference ||= String(caption).trim().slice(0, 500);
-    scene.concept ||= { label:captionDecision.label, contentType:'Other', format:'Other', specificity:'specific' };
-    scene.hint = { topic:'Other', context:captionDecision.label, evidence:'Caption evidence', provider:clInferenceLabel(captionDecision.source) };
-    scene.lastDecision = { mode:matchingMode, source:captionDecision.source,
-      reason:captionDecision.status === 'matched' ? 'Identifying details agree across captions.' :
-        'This caption identifies a specific target in the recent comparison set.', time:Date.now() };
-  }
+  if (captionDecision) clApplyCaptionDecision(scene,captionDecision,caption);
   if(exact)scene.lastDecision={mode:'matching-footage',reason:'Ordered perceptual fingerprints and coarse colour layout match previously observed footage. This is an approximate visual match.',time:Date.now()};
   scene.sampleSets=scene.sampleSets||[];
   if(!exact&&!settings.captionAI)scene.sampleSets.push(samples);
   scene.sampleSets=scene.sampleSets.slice(-4);
   if(!scene.audioId&&/^[0-9]{3,30}$/.test(String(audioId)))scene.audioId=String(audioId);
   if(!scene.audioTitle&&audioTitle)scene.audioTitle=String(audioTitle).slice(0,120);
-  addAccount(scene,normalized,postUrl,caption);scene.updatedAt=Date.now();library[sceneId]=scene;
+  clAddScenePost(scene,normalized,postUrl,caption);scene.updatedAt=Date.now();library[sceneId]=scene;
   const entries=Object.entries(library).sort((a,b)=>(a[1].updatedAt||0)-(b[1].updatedAt||0));
   for(const [oldId]of entries.slice(0,Math.max(0,entries.length-MAX_SCENES)))delete library[oldId];
   await put({[LIBRARY_KEY]:library});
@@ -164,7 +150,7 @@ async function register({account,samples,caption='',postUrl='',imageDataUrls=[],
   await diagnose(captionDecision ? `Caption comparison · ${clInferenceLabel(captionDecision.source)}` : identified?(identified.compared?'AI compared targets':'AI observed target'):'Previously observed footage',
     `${scene.concept?.label||'Matching footage'} / ${count}/${clClampThreshold(settings.threshold)} ${unit} / ${identified?.verification?.status||matchingMode} / ${identified?.analysis?.frameCount||0} frames / ${reason}`);
   if(unit==='posts'&&!postKey)await diagnose('Post URL unavailable · not added','Open this Reel directly to count its unique post. Feed/profile URLs are not post IDs; replays are never counted as new posts.');
-  return {ok:true,sceneId,count,unit,fold,scene,hint:scene.hint,concept:scene.concept,matchingMode,inferenceSource:scene.lastDecision?.source,matchedFrames:exact?.matchedFrames||0};
+  return {ok:true,sceneId,count,unit,fold,scene,hint:scene.hint,concept:scene.concept,matchingMode,inferenceSource:captionDecision?.source,matchedFrames:exact?.matchedFrames||0};
 }
 chrome.runtime.onMessage.addListener((msg,sender,respond)=>{
   if(msg?.type==='CL_REGISTER') {
