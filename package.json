@@ -13,6 +13,13 @@
     "check": "node tools/check.cjs",
     "benchmark": "node tools/evaluate.cjs",
     "test:provider": "node tools/provider-smoke.cjs",
-    "test:browser": "node tools/browser-smoke.cjs"
+    "test:browser": "node tools/browser-smoke.cjs",
+    "build:hybrid": "node tools/build-hybrid.cjs"
+  },
+  "dependencies": {
+    "firebase": "13.3.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }

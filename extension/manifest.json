@@ -1,13 +1,15 @@
 {
   "manifest_version": 3,
   "name": "ContextLens \u2014 See the context",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Blur repeated specific viral subjects, named places/products, actions and meme formats with selectable unique-post or account counts and opt-in Meta Muse Spark visual analysis.",
   "permissions": [
     "storage"
   ],
   "host_permissions": [
-    "http://127.0.0.1:8766/*"
+    "http://127.0.0.1:8766/*",
+    "https://firebasevertexai.googleapis.com/*",
+    "https://firebaseappcheck.googleapis.com/*"
   ],
   "action": {
     "default_title": "ContextLens \u00b7 Settings",
@@ -24,6 +26,7 @@
       ],
       "js": [
         "shared.js",
+        "hybrid-decision.js",
         "overlay.js",
         "content.js"
       ],

@@ -5,7 +5,7 @@ const CL_TOPICS = Object.freeze([
   'Science', 'Health', 'Travel', 'Gaming', 'Other'
 ]);
 const CL_DEFAULTS = Object.freeze({
-  enabled: true, threshold: 3, aiEnabled: false, shareFrame: false,
+  enabled: true, threshold: 3, aiEnabled: false, shareFrame: false, captionAI: false, captionCloud: false,
   bridgeUrl: 'http://127.0.0.1:8766', bridgeToken: '',
   originTraceUrl: 'http://localhost:5173/', alwaysShow: [], countUnit: 'posts'
 });

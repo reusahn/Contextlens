@@ -1,10 +1,10 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),crypto=require('node:crypto'),path=require('node:path');
 const identified={topic:'Politics',format:'News Event',label:'A specific podium statement',keyword:'Podium statement',action:'A speaker raises a chart at the podium',visualEvidence:'Chart held beside the named conference backdrop',specificity:'specific',visualConfirmed:true,viralKey:'podium-statement',identityScope:'event',evidenceId:'cached-observation'};
-function setup(fetchImpl,initial={}) {
+function setup(fetchImpl,initial={},runtime={}) {
  let handler;const data={cl_settings_v2:{enabled:true,threshold:3,aiEnabled:true,shareFrame:true,bridgeToken:'test'},...initial},tabs=[];
- const chrome={storage:{local:{get:async keys=>Object.fromEntries(keys.map(k=>[k,structuredClone(data[k])])),set:async v=>Object.assign(data,structuredClone(v))}},runtime:{onMessage:{addListener:f=>handler=f}},tabs:{create:async x=>tabs.push(x)}};
+ const chrome={storage:{local:{get:async keys=>Object.fromEntries(keys.map(k=>[k,structuredClone(data[k])])),set:async v=>Object.assign(data,structuredClone(v))}},runtime:{onMessage:{addListener:f=>handler=f},...runtime},tabs:{create:async x=>tabs.push(x)}};
  const ctx=vm.createContext({chrome,console,BigInt,crypto:crypto.webcrypto,setTimeout,clearTimeout,URL,AbortController,AbortSignal,Date,Math,fetch:fetchImpl});
- ctx.importScripts=()=>vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/shared.js'),'utf8'),ctx);
+ ctx.importScripts=(...files)=>files.forEach(file=>vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension',file),'utf8'),ctx));
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/background.js'),'utf8'),ctx);
  const send=(msg,sender='https://www.instagram.com/reels/')=>new Promise(r=>handler(msg,{url:sender},r));
  const register=(account,n)=>send({type:'CL_REGISTER',account,caption:'untrusted caption',postUrl:`https://www.instagram.com/reel/${n}/`,samples:[0,1,2].map(i=>({hash:crypto.createHash('sha256').update(`${n}-${i}`).digest('hex').slice(0,16),luma:80+i*40})),imageDataUrls:['frame','frame'],frameTimes:[0,1]});
@@ -73,4 +73,38 @@ test('profile or feed URL cannot inflate unique-post count',async()=>{
  const a=await app.send(input),b=await app.send(input);
  assert.equal(a.count,0);assert.equal(b.count,0);assert.equal(a.fold,false);
  assert.match(app.data.cl_diagnostics_v1[0].status,/Post URL unavailable/);
+});
+
+
+test('hybrid captions reuse thresholds and deduplication without sending video or account data', async () => {
+ const requests=[];
+ const app=setup(async()=>{throw Error('visual bridge must not be called');},
+   {cl_settings_v2:{captionAI:true,captionCloud:false,threshold:2}},{
+   getContexts:async()=>[{tabId:7}],getURL:file=>`chrome-extension://test/${file}`,
+   sendMessage:async message=>{
+     requests.push(message);
+     const previous=message.candidates[0];
+     if(message.caption==='Tried this today.')return {ok:true,source:'on_device',text:'{"status":"uncertain"}'};
+     return {ok:true,source:message.allowCloud?'in_cloud':'on_device',text:JSON.stringify({
+       status:previous?'matched':'distinct',candidateId:previous?.id || '',label:'Moonwalk Slide',
+       currentCue:'Moonwalk Slide',priorCue:'Moonwalk Slide'
+     })};
+   }});
+ const post=(id,caption)=>app.send({type:'CL_REGISTER',account:`creator_${id}`,
+   postUrl:`https://www.instagram.com/reel/${id}/`,caption,imageDataUrls:['should-never-send']});
+ const first=await post(1,'I tried the Moonwalk Slide.');
+ assert.equal(first.count,1);
+ assert.equal(first.inferenceSource,'on_device');
+ assert.equal(first.fold,false);
+ const vague=await post(2,'Tried this today.');
+ assert.equal(vague.status,'unclassified');
+ app.data.cl_settings_v2.captionCloud=true;
+ const second=await post(3,'My take on the Moonwalk Slide.');
+ assert.equal(second.inferenceSource,'in_cloud');
+ assert.equal(second.count,2);
+ assert.equal(second.fold,true);
+ assert.equal((await post(3,'My take on the Moonwalk Slide.')).count,2);
+ assert.equal(requests.length,3);
+ assert.deepEqual(requests.map(x=>x.allowCloud),[false,false,true]);
+ assert.ok(requests.every(x=>!('account' in x)&&!('postUrl' in x)&&!('imageDataUrls' in x)));
 });

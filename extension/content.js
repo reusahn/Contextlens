@@ -214,8 +214,9 @@
     // A solitary unrelated post should not appear to reset a previously
     // recognized trend from 2/3 to 1/3. Show progress on-video from 2/3;
     // all individual group counts remain visible in the popup.
-    if (count>=2) statusBadge(st,`${meta.category} · ${count}/${threshold} ${unit}`);
-    else statusBadge(st,`${meta.category} · ${count}/${threshold} ${unit}`,'muted');
+    const source = clInferenceLabel(st.inferenceSource || scene.lastDecision?.source);
+    const badgeLabel = source ? `${meta.keyword} · ${source}` : meta.category;
+    statusBadge(st,`${badgeLabel} · ${count}/${threshold} ${unit}`,count>=2?'neutral':'muted');
     st.badge.title=`Subject: ${meta.subject} | Format: ${meta.format} | Target: ${meta.keyword} | ${count} unique ${unit}`;
     if(!active) {video.classList.remove('cl-video-blurred');st.fold?.remove();st.fold=null;st.drawSignature='';return;}
     video.classList.add('cl-video-blurred');
@@ -265,7 +266,7 @@
     CLOverlay.update();
   }
   function ingest(video, st) {
-    if (st.working || st.retryable || st.unclassified || st.sceneId || st.samples.length<2) return;
+    if (st.working || st.retryable || st.unclassified || st.sceneId || (!settings.captionAI && st.samples.length<2)) return;
     st.working=true;
     const sentAccount=st.account, sentPostUrl=st.postUrl, sentMediaSource=st.mediaSource,sentGeneration=st.generation;
     const ordered=st.previews.map((url,i)=>({url,time:st.previewTimes[i]})).sort((a,b)=>a.time-b.time);
@@ -286,7 +287,7 @@
         if(res?.status==='unclassified') {
           st.unclassified=true;
           st.retryable=false;
-          statusBadge(st,'Unclassified · not counted','muted');
+          statusBadge(st,`Unclassified · not counted${res.inferenceSource ? ' · '+clInferenceLabel(res.inferenceSource) : ''}`,'muted');
           return;
         }
         if(res?.retryable) {
@@ -305,6 +306,7 @@
       }
       st.badge?.remove();st.badge=null;st.retryable=false;st.unclassified=false;
       st.sceneId=res.sceneId;
+      st.inferenceSource=res.inferenceSource;
       const scene=res.scene || library[res.sceneId] || {accounts:[] ,hint:res.hint,concept:res.concept};
       if(!scene.accounts.some(x=>x.account===st.account)) scene.accounts.push({account:st.account});
       library[res.sceneId]=scene;
@@ -323,7 +325,7 @@
     if (nowAccount !== st.account || nowPostUrl!==st.postUrl || nowAudio.id!==st.audio.id || (nowMediaSource && st.mediaSource && nowMediaSource!==st.mediaSource)) {
       st.account=nowAccount; st.postUrl=nowPostUrl;st.mediaSource=nowMediaSource;st.audio=nowAudio;
       st.caption=captionOf(video,st.container);
-      st.samples=[];st.previews=[];st.previewTimes=[];st.sceneId='';st.show=false;st.retryable=false;st.unclassified=false;st.reason='';st.firstSeenAt=Date.now();st.firstVisibleAt=0;st.generation++;st.working=false;clearWidgets(video);
+      st.inferenceSource='';st.samples=[];st.previews=[];st.previewTimes=[];st.sceneId='';st.show=false;st.retryable=false;st.unclassified=false;st.reason='';st.firstSeenAt=Date.now();st.firstVisibleAt=0;st.generation++;st.working=false;clearWidgets(video);
     } else if(!st.mediaSource && nowMediaSource) st.mediaSource=nowMediaSource;
     st.audio=nowAudio;if(!st.working)st.caption=captionOf(video,st.container);
     if(containerMoved&&st.sceneId)draw(video);
@@ -358,6 +360,11 @@
           console.info('[ContextLens] Account lookup diagnostic',ACCOUNT_BUILD,JSON.stringify(ancestors));
         }
       }
+      return;
+    }
+    if (settings.captionAI) {
+      // Let dynamically loaded captions settle before registering the post.
+      if (st.caption || Date.now()-st.firstVisibleAt > 3000) ingest(video, st);
       return;
     }
     if (video.paused && !video.srcObject && video.readyState<2) return;
@@ -425,7 +432,19 @@
   });
   chrome.storage.onChanged.addListener((changes,area)=>{
     if(area!=='local')return;
-    if(changes.cl_settings_v2)settings={...DEFAULT,...changes.cl_settings_v2.newValue};
+    if(changes.cl_settings_v2) {
+      const next={...DEFAULT,...changes.cl_settings_v2.newValue};
+      if(Boolean(settings.captionAI)!==Boolean(next.captionAI) || Boolean(settings.captionCloud)!==Boolean(next.captionCloud)) {
+        for (const video of liveVideos) {
+          const st=states.get(video);
+          if (!st) continue;
+          st.generation++;st.sceneId='';st.inferenceSource='';st.working=false;
+          st.unclassified=false;st.retryable=false;st.show=false;
+          clearWidgets(video);
+        }
+      }
+      settings=next;
+    }
     if(changes.cl_library_v2)library=changes.cl_library_v2.newValue||{};
     if(settings.enabled) scan();
     refresh();

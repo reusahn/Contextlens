@@ -1,4 +1,4 @@
-importScripts('shared.js');
+importScripts('shared.js', 'hybrid-decision.js');
 const SETTINGS_KEY='cl_settings_v2',LIBRARY_KEY='cl_library_v2',DIAG_KEY='cl_diagnostics_v1',MAX_SCENES=500;
 const read=keys=>chrome.storage.local.get(keys),put=data=>chrome.storage.local.set(data);
 let work=Promise.resolve(),bridgeLimitReached=false;
@@ -86,11 +86,38 @@ async function register({account,samples,caption='',postUrl='',imageDataUrls=[],
   if(reconcileLibrary(library))await put({[LIBRARY_KEY]:library});
   const normalized=clNormalizeAccount(account);
   if(!normalized)return {ok:false,reason:'Account not identified; no blur applied.'};
-  if(!Array.isArray(samples)||samples.length<2||samples.length>8||samples.some(s=>!/^[0-9a-f]{16}$/.test(s?.hash||'')))return {ok:false,reason:'Not enough distinct video frames; no blur applied.'};
-  const postKey=clPostKey(postUrl),registeredId=postKey&&Object.keys(library).find(id=>clScenePosts(library[id]).some(v=>v.key===postKey));
-  const exact=registeredId?null:bestScene(samples,library);let sceneId=registeredId||exact?.id||null,identified=null,matchingMode=registeredId?'same-post':exact?'matching-footage':'new-video';
-  if(!sceneId) {
-    identified=await identifyMotif(settings,library,{caption,postUrl,imageDataUrls,frameTimes,audioId,audioTitle});
+  if(!settings.captionAI&&(!Array.isArray(samples)||samples.length<2||samples.length>8||samples.some(s=>!/^[0-9a-f]{16}$/.test(s?.hash||''))))return {ok:false,reason:'Not enough distinct video frames; no blur applied.'};
+  const eligible = Object.fromEntries(Object.entries(library).filter(([, scene]) =>
+    Boolean(scene.captionReference) === Boolean(settings.captionAI)));
+  if (settings.captionAI && !clPostKey(postUrl)) {
+    return {ok:false,status:'unclassified',reason:'A post permalink is required for caption tracking.'};
+  }
+  const postKey=clPostKey(postUrl),registeredId=postKey&&Object.keys(eligible).find(id=>clScenePosts(eligible[id]).some(v=>v.key===postKey));
+  const exact=registeredId||settings.captionAI?null:bestScene(samples,eligible);let sceneId=registeredId||exact?.id||null,identified=null,matchingMode=registeredId?'same-post':exact?'matching-footage':'new-video';
+  let captionDecision;
+  if (!sceneId && settings.captionAI) {
+    const current = String(caption).trim().slice(0, 500);
+    if (current.length < 4) return {ok:false,status:'unclassified',reason:'No usable caption.'};
+    const candidates = clCaptionCandidates(eligible);
+    const [setup] = await chrome.runtime.getContexts({
+      contextTypes:['TAB'], documentUrls:[chrome.runtime.getURL('hybrid.html')]
+    });
+    const reply = setup && await chrome.runtime.sendMessage({
+      type:'CL_HYBRID_COMPARE', tabId:setup.tabId, caption:current, candidates,
+      allowCloud:settings.captionCloud === true
+    }).catch(() => null);
+    captionDecision = reply?.ok && clCaptionDecision(reply, current, candidates, settings.captionCloud === true);
+    if (!captionDecision) return {ok:false,retryable:true,reason:'Open the Hybrid AI setup tab and check Firebase configuration.'};
+    const source = clInferenceLabel(captionDecision.source);
+    if (captionDecision.status === 'uncertain') {
+      await diagnose(`Caption comparison · ${source}`, 'Insufficient identifying details · not counted.');
+      return {ok:false,status:'unclassified',reason:'Caption lacks sufficient identifying details.', inferenceSource:captionDecision.source};
+    }
+    sceneId = captionDecision.id || null;
+    matchingMode = 'caption-comparison';
+  }
+  if(!sceneId && !settings.captionAI) {
+    identified=await identifyMotif(settings,eligible,{caption,postUrl,imageDataUrls,frameTimes,audioId,audioTitle});
     if(identified?.quotaExhausted)return {ok:false,status:'budget-exhausted',reason:'Local Meta-call limit reached — not counted.'};
     if(!identified&&settings.aiEnabled&&settings.shareFrame&&settings.bridgeToken)return {ok:false,retryable:true,reason:imageDataUrls.length<2?'Video frames unavailable — not counted.':'AI unavailable — not counted. Click Retry.'};
     if(identified?.specificity==='insufficient'||identified?.verification?.status==='uncertain') {
@@ -114,9 +141,17 @@ async function register({account,samples,caption='',postUrl='',imageDataUrls=[],
     scene.hint=hint;
     scene.lastDecision={mode:matchingMode,...identified.verification,time:Date.now()};
   }
+  if (captionDecision) {
+    scene.captionReference ||= String(caption).trim().slice(0, 500);
+    scene.concept ||= { label:captionDecision.label, contentType:'Other', format:'Other', specificity:'specific' };
+    scene.hint = { topic:'Other', context:captionDecision.label, evidence:'Caption evidence', provider:clInferenceLabel(captionDecision.source) };
+    scene.lastDecision = { mode:matchingMode, source:captionDecision.source,
+      reason:captionDecision.status === 'matched' ? 'Identifying details agree across captions.' :
+        'This caption identifies a specific target in the recent comparison set.', time:Date.now() };
+  }
   if(exact)scene.lastDecision={mode:'matching-footage',reason:'Ordered perceptual fingerprints and coarse colour layout match previously observed footage. This is an approximate visual match.',time:Date.now()};
   scene.sampleSets=scene.sampleSets||[];
-  if(!exact)scene.sampleSets.push(samples);
+  if(!exact&&!settings.captionAI)scene.sampleSets.push(samples);
   scene.sampleSets=scene.sampleSets.slice(-4);
   if(!scene.audioId&&/^[0-9]{3,30}$/.test(String(audioId)))scene.audioId=String(audioId);
   if(!scene.audioTitle&&audioTitle)scene.audioTitle=String(audioTitle).slice(0,120);
@@ -126,10 +161,10 @@ async function register({account,samples,caption='',postUrl='',imageDataUrls=[],
   await put({[LIBRARY_KEY]:library});
   const unit=clCountUnit(settings),count=clSceneCount(scene,settings),fold=count>=clClampThreshold(settings.threshold)&&!(settings.alwaysShow||[]).includes(sceneId);
   const reason=identified?.verification?.reason||scene.lastDecision?.reason||'Already observed post.';
-  await diagnose(identified?(identified.compared?'AI compared targets':'AI observed target'):'Previously observed footage',
+  await diagnose(captionDecision ? `Caption comparison · ${clInferenceLabel(captionDecision.source)}` : identified?(identified.compared?'AI compared targets':'AI observed target'):'Previously observed footage',
     `${scene.concept?.label||'Matching footage'} / ${count}/${clClampThreshold(settings.threshold)} ${unit} / ${identified?.verification?.status||matchingMode} / ${identified?.analysis?.frameCount||0} frames / ${reason}`);
   if(unit==='posts'&&!postKey)await diagnose('Post URL unavailable · not added','Open this Reel directly to count its unique post. Feed/profile URLs are not post IDs; replays are never counted as new posts.');
-  return {ok:true,sceneId,count,unit,fold,scene,hint:scene.hint,concept:scene.concept,matchingMode,matchedFrames:exact?.matchedFrames||0};
+  return {ok:true,sceneId,count,unit,fold,scene,hint:scene.hint,concept:scene.concept,matchingMode,inferenceSource:scene.lastDecision?.source,matchedFrames:exact?.matchedFrames||0};
 }
 chrome.runtime.onMessage.addListener((msg,sender,respond)=>{
   if(msg?.type==='CL_REGISTER') {

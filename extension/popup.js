@@ -40,7 +40,7 @@ async function renderGroups() {
 async function load() {
   const data=await chrome.storage.local.get(['cl_settings_v2','cl_library_v2']);
   const s={...defaults,...data.cl_settings_v2};
-  for (const name of ['enabled','aiEnabled','shareFrame']) el(name).checked=!!s[name];
+  for (const name of ['enabled','aiEnabled','shareFrame','captionAI','captionCloud']) el(name).checked=!!s[name];
   for (const name of ['bridgeToken','originTraceUrl']) el(name).value=s[name]||'';
   el('threshold').value=s.threshold;el('nValue').textContent=s.threshold;
   el('countUnit').value=clCountUnit(s);el('unitLabel').textContent=clCountUnit(s)==='posts'?'Unique posts (N)':'Unique accounts (N)';
@@ -54,6 +54,10 @@ async function diagnostics() {
     return `${hhmm} · ${e.status}\n${e.detail}`;
   });
   el('diagnostics').textContent=lines.length?lines.join('\n\n'):'No video classifications yet. Watch two or more clips, then refresh.';
+  if (el('captionAI').checked) {
+    el('bridgeStatus').textContent='Firebase caption mode · see processing location in recent results.';
+    return;
+  }
   try {
     const res=await fetch('http://127.0.0.1:8766/health');
     if(!res.ok)throw Error(`HTTP ${res.status}`);
@@ -63,6 +67,14 @@ async function diagnostics() {
       (data.pipeline==='observe-retrieve-verify-v3-temporal'?' · Temporal verification v3':' · Restart the updated bridge for temporal verification v3.');
   } catch {el('bridgeStatus').textContent='Local bridge unreachable (check Terminal: node server.js).';}
 }
+el('hybridSetup').addEventListener('click', async () => {
+  const url = chrome.runtime.getURL('hybrid.html');
+  const [existing] = await chrome.runtime.getContexts({contextTypes:['TAB'],documentUrls:[url]});
+  if (existing) {
+    await chrome.tabs.update(existing.tabId, {active:true});
+    await chrome.windows.update(existing.windowId, {focused:true});
+  } else await chrome.tabs.create({url});
+});
 el('refreshDiagnostics').addEventListener('click',diagnostics);
 el('threshold').addEventListener('input',()=>el('nValue').textContent=el('threshold').value);
 el('countUnit').addEventListener('change',()=>el('unitLabel').textContent=el('countUnit').value==='posts'?'Unique posts (N)':'Unique accounts (N)');
@@ -73,7 +85,7 @@ el('save').addEventListener('click',async()=>{
     const u=new URL(url);
     if(u.protocol!=='https:' && !(u.protocol==='http:' && ['localhost','127.0.0.1'].includes(u.hostname)))throw Error();
   } catch {el('notice').textContent='Enter a valid HTTPS or localhost OriginTrace URL.';return;}
-  await chrome.storage.local.set({cl_settings_v2:{...old,enabled:el('enabled').checked,threshold:Number(el('threshold').value),countUnit:el('countUnit').value,aiEnabled:el('aiEnabled').checked,shareFrame:el('shareFrame').checked,bridgeToken:el('bridgeToken').value.trim(),originTraceUrl:url}});
+  await chrome.storage.local.set({cl_settings_v2:{...old,enabled:el('enabled').checked,captionAI:el('captionAI').checked,captionCloud:el('captionCloud').checked,threshold:Number(el('threshold').value),countUnit:el('countUnit').value,aiEnabled:el('aiEnabled').checked,shareFrame:el('shareFrame').checked,bridgeToken:el('bridgeToken').value.trim(),originTraceUrl:url}});
   el('notice').textContent='Settings saved. Reload Instagram tabs to rescan existing videos.';await diagnostics();
 });
 el('reset').addEventListener('click',async()=>{await chrome.storage.local.set({cl_library_v2:{},cl_diagnostics_v1:[]});el('notice').textContent='All counts cleared. Reload Instagram tabs to analyze again.';await load();await diagnostics();});

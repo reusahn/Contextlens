@@ -10,6 +10,8 @@ Built for the Meta Global AI Developer Hackathon with **Meta Muse Spark 1.3**. C
 
 [Why we built it](#why-we-built-it) · [Demo flow](#demo-flow) · [Core engineering contribution](#core-engineering-contribution) · [How it works](#how-it-works) · [Run locally](#run-locally) · [Validation](#validation)
 
+**Firebase caption comparison** — See the [#BuildHybridAI setup and demo guide](docs/BUILD_HYBRID_AI.md).
+
 ## Why we built it
 
 A new post is not always a new idea.
